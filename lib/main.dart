@@ -7,79 +7,86 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart'; // Ensure this is in pubspec.yaml
 
-// ⚠️ PASTE YOUR WORKING KEY HERE ⚠️
+// ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw"; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     }
   } catch (e) {
     print("Firebase Setup Error: $e");
   }
-  runApp(const MyApp());
+  runApp(const CarbonTrackerApp());
 }
 
 // ---------------------------------------------------------
-// 1. APP ROOT & THEME MANAGER
+// 1. APP ROOT & MODERN THEME
 // ---------------------------------------------------------
-class MyApp extends StatefulWidget {
-  const MyApp({super.key});
-
-  static void toggleTheme(BuildContext context) {
-    _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
-    state?.toggleTheme();
-  }
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.light;
-
-  void toggleTheme() {
-    setState(() {
-      _themeMode =
-          _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-    });
-  }
+class CarbonTrackerApp extends StatelessWidget {
+  const CarbonTrackerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Carbon Shadow',
-      // ✨ LIGHT THEME (Fixed: Removed CardTheme to prevent errors)
+      themeMode: ThemeMode.system,
+      
+      // --- LIGHT THEME (Forest & Clean) ---
       theme: ThemeData(
-        useMaterial3: true,
         brightness: Brightness.light,
-        colorSchemeSeed: Colors.green,
-        scaffoldBackgroundColor: Colors.grey[50],
-        appBarTheme: const AppBarTheme(
-            backgroundColor: Colors.white,
-            elevation: 0,
-            iconTheme: IconThemeData(color: Colors.black),
-            titleTextStyle: TextStyle(
-                color: Colors.black, fontSize: 20, fontWeight: FontWeight.bold)),
-      ),
-      // 🌑 DARK THEME (Fixed)
-      darkTheme: ThemeData(
+        scaffoldBackgroundColor: const Color(0xFFF4F7F6),
+        primaryColor: const Color(0xFF006C50), // Forest Green
+        colorScheme: ColorScheme.light(
+          primary: const Color(0xFF006C50),
+          secondary: const Color(0xFF00D1A3),
+          surface: Colors.white,
+          onSurface: const Color(0xFF1A1C19),
+        ),
         useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: Colors.green,
-        scaffoldBackgroundColor: const Color(0xFF121212),
+        cardTheme: CardThemeData(
+          elevation: 2, 
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Colors.white,
+          shadowColor: Colors.black12,
+        ),
         appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF1E1E1E),
-            elevation: 0,
-            titleTextStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.transparent, 
+          elevation: 0, 
+          centerTitle: true,
+          titleTextStyle: TextStyle(color: Color(0xFF006C50), fontWeight: FontWeight.w900, fontSize: 22)
+        ),
       ),
-      themeMode: _themeMode,
+
+      // --- DARK THEME (Cyber & Neon) ---
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        primaryColor: const Color(0xFF00E676), // Neon Green
+        colorScheme: ColorScheme.dark(
+          primary: const Color(0xFF00E676),
+          secondary: const Color(0xFF00A878),
+          surface: const Color(0xFF1E1E1E),
+          onSurface: const Color(0xFFE0E0E0),
+        ),
+        useMaterial3: true,
+        cardTheme: CardThemeData(
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: const Color(0xFF1E1E1E),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent, 
+          elevation: 0,
+          centerTitle: true,
+          titleTextStyle: TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.w900, fontSize: 22)
+        ),
+      ),
       home: const AuthGate(),
     );
   }
@@ -90,15 +97,12 @@ class _MyAppState extends State<MyApp> {
 // ---------------------------------------------------------
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        if (snapshot.hasData) {
-          return const MainScreen();
-        }
+        if (snapshot.hasData) return const MainScreen();
         return const LoginScreen();
       },
     );
@@ -106,39 +110,52 @@ class AuthGate extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 3. LOGIN SCREEN
+// 3. LOGIN & SIGN UP SCREEN (Fixed with Name Field)
 // ---------------------------------------------------------
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _nameController = TextEditingController(); // NEW: Name Controller
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _isLogin = true;
 
   Future<void> _submit() async {
+    if (!_isLogin && _nameController.text.trim().isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter your name for the leaderboard!")));
+       return;
+    }
+
     setState(() => _isLoading = true);
     try {
       if (_isLogin) {
         await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
+          email: _emailController.text.trim(), 
+          password: _passwordController.text.trim()
         );
       } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
+        // 1. Create User
+        UserCredential cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(), 
+          password: _passwordController.text.trim()
         );
+        
+        // 2. Create Database Entry for Leaderboard
+        await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).set({
+          'uid': cred.user!.uid,
+          'email': _emailController.text.trim(),
+          'displayName': _nameController.text.trim(), // Saving Name
+          'totalPoints': 0,
+          'joinedAt': FieldValue.serverTimestamp(),
+        });
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Auth Error"), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message ?? "Error"), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -146,65 +163,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.eco, size: 80, color: Colors.green),
-              const SizedBox(height: 20),
-              Text(
-                _isLogin ? "Welcome Back" : "Join the Movement",
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "Track your invisible carbon impact.",
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey),
-              ),
-              const SizedBox(height: 40),
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  prefixIcon: const Icon(Icons.email_outlined),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [primaryColor.withOpacity(0.8), const Color(0xFF121212)], 
+            begin: Alignment.topLeft, end: Alignment.bottomRight
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Card(
+              margin: const EdgeInsets.all(24),
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.eco, size: 60, color: primaryColor),
+                    const SizedBox(height: 20),
+                    Text(_isLogin ? "Welcome Back" : "Join the Movement", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 20),
+                    
+                    // Show Name field ONLY if Signing Up
+                    if (!_isLogin)
+                      TextField(
+                        controller: _nameController, 
+                        decoration: InputDecoration(labelText: "Display Name", prefixIcon: const Icon(Icons.person), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))
+                      ),
+                    if (!_isLogin) const SizedBox(height: 10),
+
+                    TextField(controller: _emailController, decoration: InputDecoration(labelText: "Email", prefixIcon: const Icon(Icons.email), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                    const SizedBox(height: 10),
+                    TextField(controller: _passwordController, obscureText: true, decoration: InputDecoration(labelText: "Password", prefixIcon: const Icon(Icons.lock), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                    const SizedBox(height: 24),
+                    
+                    SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
+                      onPressed: _isLoading ? null : _submit, 
+                      style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), 
+                      child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text(_isLogin ? "LOGIN" : "SIGN UP")
+                    )),
+                    
+                    TextButton(onPressed: () => setState(() => _isLogin = !_isLogin), child: Text(_isLogin ? "New here? Create Account" : "Have an account? Login")),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(_isLogin ? "LOGIN" : "CREATE ACCOUNT"),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => setState(() => _isLogin = !_isLogin),
-                child: Text(_isLogin ? "New here? Create Account" : "Already have an account? Login"),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -223,44 +228,31 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  
   final List<Widget> _pages = [
-    const ScannerScreen(),
+    const DashboardScreen(),
     const TravelScreen(),
-    const HistoryScreen(),
+    const ScannerScreen(), 
+    const LeaderboardScreen(),
+    const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    bool isDark = Theme.of(context).brightness == Brightness.dark;
-    
     return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.eco, color: Colors.green),
-            SizedBox(width: 8),
-            Text("Carbon Shadow"),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-            onPressed: () => MyApp.toggleTheme(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
-          ),
-        ],
-      ),
       body: _pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
+        height: 65,
+        backgroundColor: Theme.of(context).cardTheme.color,
+        indicatorColor: Theme.of(context).primaryColor.withOpacity(0.2),
         selectedIndex: _currentIndex,
-        onDestinationSelected: (int index) => setState(() => _currentIndex = index),
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.camera_alt_outlined), selectedIcon: Icon(Icons.camera_alt), label: 'Scanner'),
-          NavigationDestination(icon: Icon(Icons.commute_outlined), selectedIcon: Icon(Icons.commute), label: 'Travel'),
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: "Dash"),
+          NavigationDestination(icon: Icon(Icons.directions_bus_outlined), selectedIcon: Icon(Icons.directions_bus), label: "Travel"),
+          NavigationDestination(icon: Icon(Icons.qr_code_scanner), selectedIcon: Icon(Icons.qr_code), label: "Scan"),
+          NavigationDestination(icon: Icon(Icons.emoji_events_outlined), selectedIcon: Icon(Icons.emoji_events), label: "Rank"),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: "Profile"),
         ],
       ),
     );
@@ -268,7 +260,426 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 // ---------------------------------------------------------
-// 5. SCANNER SCREEN
+// 5. DASHBOARD SCREEN (Fixed Timestamps & Levels)
+// ---------------------------------------------------------
+// ---------------------------------------------------------
+// REPLACEMENT: DASHBOARD SCREEN (With Level Popup)
+// ---------------------------------------------------------
+class DashboardScreen extends StatelessWidget {
+  const DashboardScreen({super.key});
+
+  // Helper: Convert Timestamp to "Time Ago"
+  String getTimeAgo(DateTime date) {
+    final Duration diff = DateTime.now().difference(date);
+    if (diff.inDays >= 1) return "${diff.inDays}d ago";
+    if (diff.inHours >= 1) return "${diff.inHours}h ago";
+    if (diff.inMinutes >= 1) return "${diff.inMinutes}m ago";
+    return "Just now";
+  }
+
+  // Helper: Show the "Total Levels" Dialog
+  void _showLevelMap(BuildContext context, int currentPoints, int currentLevel) {
+    // Define the Levels and their Points
+    final Map<int, int> levelMap = {
+      1: 0,
+      2: 100,
+      3: 300,
+      4: 600,
+      5: 1000,
+      6: 2000,
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(ctx).cardTheme.color,
+        title: const Text("Earth Guardian Path"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: levelMap.entries.map((entry) {
+            int lvl = entry.key;
+            int pointsReq = entry.value;
+            bool isUnlocked = currentLevel >= lvl;
+            
+            return ListTile(
+              dense: true,
+              leading: Icon(
+                isUnlocked ? Icons.check_circle : Icons.lock_outline, 
+                color: isUnlocked ? Colors.green : Colors.grey
+              ),
+              title: Text(
+                "Level $lvl", 
+                style: TextStyle(
+                  fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal,
+                  color: isUnlocked ? Theme.of(ctx).textTheme.bodyLarge?.color : Colors.grey
+                )
+              ),
+              trailing: Text("$pointsReq pts"),
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Close"))
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Dashboard")),
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
+        builder: (context, userSnap) {
+          if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
+          
+          final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
+          int totalPoints = userData['totalPoints'] ?? 0;
+          
+          // --- LEVEL LOGIC ---
+          List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
+          int currentLevel = 1;
+          int nextGoal = 100;
+
+          for (int i = 0; i < thresholds.length; i++) {
+             if (totalPoints >= thresholds[i]) {
+                currentLevel = i + 1;
+                // Determine next goal
+                nextGoal = (i + 1 < thresholds.length) ? thresholds[i + 1] : thresholds.last;
+             }
+          }
+          
+          // Prevent division by zero if max level
+          int pointsNeeded = nextGoal - totalPoints;
+          double progress = 0.0;
+          if (currentLevel < thresholds.length) {
+             int prevGoal = thresholds[currentLevel - 1];
+             progress = (totalPoints - prevGoal) / (nextGoal - prevGoal);
+          } else {
+             progress = 1.0; // Max level
+             pointsNeeded = 0;
+          }
+
+          return Column(
+            children: [
+              // --- GAMIFICATION CARD (CLICKABLE) ---
+              GestureDetector(
+                onTap: () => _showLevelMap(context, totalPoints, currentLevel),
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [primaryColor, primaryColor.withOpacity(0.6)]),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("LEVEL $currentLevel", style: const TextStyle(color: Colors.white70, letterSpacing: 1.5, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              const Text("Earth Guardian", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)),
+                            child: Row(children: [
+                              const Icon(Icons.info_outline, color: Colors.white, size: 16), 
+                              const SizedBox(width: 4), 
+                              Text("$totalPoints pts", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                            ]),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10), 
+                        child: LinearProgressIndicator(
+                          value: progress.clamp(0.0, 1.0), 
+                          minHeight: 8, 
+                          backgroundColor: Colors.black12, 
+                          valueColor: const AlwaysStoppedAnimation(Colors.white)
+                        )
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight, 
+                        child: Text(
+                          pointsNeeded > 0 ? "$pointsNeeded pts to Level ${currentLevel + 1}" : "Max Level Reached!", 
+                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)
+                        )
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // --- HISTORY TITLE ---
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), 
+                child: Align(alignment: Alignment.centerLeft, child: Text("Recent Activity", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))
+              ),
+
+              // --- SCANS LIST ---
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('scans')
+                      .where('userId', isEqualTo: user.uid)
+                      //.orderBy('timestamp', descending: true) // Uncomment only after creating Index
+                      .snapshots(),
+                  builder: (context, scanSnap) {
+                    if (!scanSnap.hasData) return const Center(child: CircularProgressIndicator());
+                    final docs = scanSnap.data!.docs;
+
+                    if (docs.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.history, size: 50, color: Colors.grey[300]), const Text("No scans yet")]));
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        int score = data['carbon_score'] ?? 0;
+                        Color scoreColor = score < 30 ? Colors.green : (score < 70 ? Colors.orange : Colors.red);
+                        
+                        Timestamp? t = data['timestamp'];
+                        DateTime date = t != null ? t.toDate() : DateTime.now();
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            leading: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: scoreColor.withOpacity(0.1), shape: BoxShape.circle),
+                              child: Icon(Icons.eco, color: scoreColor),
+                            ),
+                            title: Text(data['item_name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(getTimeAgo(date)),
+                            trailing: Text("$score", style: TextStyle(color: scoreColor, fontWeight: FontWeight.w900, fontSize: 18)),
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: data))),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 6. DETAIL SCREEN (Fixed Share Button)
+// ---------------------------------------------------------
+class DetailScreen extends StatelessWidget {
+  final Map<String, dynamic> data;
+  const DetailScreen({super.key, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    int score = data['carbon_score'] ?? 0;
+    Color color = score < 30 ? const Color(0xFF00E676) : (score < 70 ? Colors.orange : const Color(0xFFFF5252));
+
+    return Scaffold(
+      appBar: AppBar(title: Text(data['item_name'] ?? "Impact Card")),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Hero Image Area
+            Container(
+              height: 300,
+              width: double.infinity,
+              color: Theme.of(context).cardTheme.color,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                   Icon(score < 50 ? Icons.eco : Icons.cloud_off, size: 120, color: color.withOpacity(0.2)),
+                   Column(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       Text("$score", style: TextStyle(fontSize: 80, fontWeight: FontWeight.w900, color: color)),
+                       Text("CARBON SCORE", style: TextStyle(color: color, letterSpacing: 2, fontWeight: FontWeight.bold)),
+                     ],
+                   )
+                ],
+              ),
+            ),
+            
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _detailRow(Icons.nature, "Eco-Analogy", data['tree_analogy'] ?? "No data", Colors.green),
+                  const SizedBox(height: 16),
+                  _detailRow(Icons.lightbulb, "AI Suggestion", data['nudge_text'] ?? "No suggestion", Colors.amber),
+                  const SizedBox(height: 16),
+                  _detailRow(Icons.category, "Category", data['shadow_type'] ?? "General", Colors.blue),
+                  
+                  const SizedBox(height: 40),
+                  
+                  // FIX: SHARE BUTTON (Opens Bottom Sheet)
+                  SizedBox(
+                    width: double.infinity, 
+                    height: 55, 
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (ctx) => Container(
+                            height: 200,
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                const Text("Share Impact Card", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    _shareIcon(Icons.camera_alt, Colors.purple, "Instagram"),
+                                    _shareIcon(Icons.message, Colors.green, "WhatsApp"),
+                                    _shareIcon(Icons.copy, Colors.grey, "Copy"),
+                                  ],
+                                )
+                              ],
+                            ),
+                          ),
+                        );
+                      }, 
+                      style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), 
+                      icon: const Icon(Icons.share), 
+                      label: const Text("SHARE IMPACT CARD")
+                    )
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _shareIcon(IconData icon, Color color, String label) {
+    return Column(children: [CircleAvatar(radius: 25, backgroundColor: color.withOpacity(0.1), child: Icon(icon, color: color)), const SizedBox(height: 8), Text(label, style: const TextStyle(fontSize: 12))]);
+  }
+
+  Widget _detailRow(IconData icon, String title, String content, Color color) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: color)),
+        const SizedBox(width: 16),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)), const SizedBox(height: 4), Text(content, style: const TextStyle(fontSize: 16))]))
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 7. TRAVEL SCREEN (With Database Update)
+// ---------------------------------------------------------
+class TravelScreen extends StatefulWidget {
+  const TravelScreen({super.key});
+  @override
+  State<TravelScreen> createState() => _TravelScreenState();
+}
+
+class _TravelScreenState extends State<TravelScreen> {
+  final _distanceController = TextEditingController();
+  String _selectedMode = "Car";
+  double _calculatedEmission = 0.0;
+  bool _isSaving = false;
+  final Map<String, double> _emissionFactors = {"Car": 0.192, "Bus": 0.105, "Motorbike": 0.103, "Train": 0.041, "Bicycle": 0.0, "Walk": 0.0};
+
+  void _calculateImpact() {
+    double dist = double.tryParse(_distanceController.text) ?? 0.0;
+    setState(() { _calculatedEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0); });
+  }
+
+  Future<void> _logTravel() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (_distanceController.text.isEmpty || user == null) return;
+    setState(() => _isSaving = true);
+    
+    // Points Logic: Less Carbon = More Points. Max 100 per trip.
+    int earnedPoints = (100 - (_calculatedEmission * 10)).toInt().clamp(10, 100);
+
+    try {
+      // 1. Add Scan
+      await FirebaseFirestore.instance.collection('scans').add({
+        'item_name': "$_selectedMode Trip", 
+        'carbon_score': (_calculatedEmission * 100).toInt().clamp(0, 100), // Visual Score
+        'shadow_type': "Travel", 
+        'nudge_text': _selectedMode == "Car" ? "Try public transport!" : "Great eco-choice!", 
+        'tree_analogy': "Emitted ${_calculatedEmission.toStringAsFixed(2)} kg CO2", 
+        'userId': user.uid, 
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      // 2. UPDATE USER TOTAL POINTS (For Leaderboard)
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'totalPoints': FieldValue.increment(earnedPoints)
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Trip Logged! +$earnedPoints pts"), backgroundColor: Colors.green));
+      _distanceController.clear();
+      setState(() { _calculatedEmission = 0.0; _isSaving = false; });
+    } catch (e) { setState(() => _isSaving = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Travel Log")),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: Theme.of(context).cardTheme.color, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _selectedMode,
+                    decoration: InputDecoration(labelText: "Transport Mode", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                    items: _emissionFactors.keys.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+                    onChanged: (val) { setState(() { _selectedMode = val!; _calculateImpact(); }); },
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(controller: _distanceController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: "Distance (km)", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), onChanged: (val) => _calculateImpact()),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+            Text("Est. Emission", style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
+            Text("${_calculatedEmission.toStringAsFixed(2)} kg", style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900)),
+            const Spacer(),
+            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: _isSaving ? null : _logTravel, style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, foregroundColor: Colors.white), child: Text(_isSaving ? "LOGGING..." : "LOG TRIP & EARN POINTS"))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 8. SCANNER SCREEN (With Gemini & Database Update)
 // ---------------------------------------------------------
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -277,53 +688,16 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> {
-  File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
-  Map<String, dynamic>? _scanData; 
-  String _statusMessage = "Ready to Scan"; 
   bool _isLoading = false;
-
-  Gradient _getShadowGradient(int score) {
-    if (score < 30) {
-      return LinearGradient(
-        begin: Alignment.bottomCenter, end: Alignment.topCenter,
-        colors: [Colors.green.withOpacity(0.6), Colors.transparent],
-      );
-    } else if (score < 70) {
-      return LinearGradient(
-        begin: Alignment.bottomCenter, end: Alignment.topCenter,
-        colors: [Colors.orange.withOpacity(0.5), Colors.transparent],
-      );
-    } else {
-      return LinearGradient(
-        begin: Alignment.bottomCenter, end: Alignment.topCenter,
-        colors: [Colors.black.withOpacity(0.8), Colors.black.withOpacity(0.2), Colors.transparent],
-      );
-    }
-  }
-
-  Future<void> _saveToDatabase(Map<String, dynamic> data) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    try {
-      await FirebaseFirestore.instance.collection('scans').add({
-        ...data,
-        'userId': user.uid,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) { print("DB Error: $e"); }
-  }
 
   Future<void> _analyzeImage() async {
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
     if (photo == null) return;
+    setState(() { _isLoading = true; });
 
-    setState(() {
-      _selectedImage = File(photo.path);
-      _isLoading = true;
-      _statusMessage = "🧠 AI is analyzing...";
-      _scanData = null; 
-    });
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
     try {
       final bytes = await File(photo.path).readAsBytes();
@@ -338,9 +712,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
           "contents": [{
             "parts": [
               {
-                "text": "Analyze this item for Carbon Footprint. Return raw JSON (no markdown): {'item_name': 'Name', 'carbon_score': 85, 'shadow_type': 'High Impact', 'nudge_text': 'Suggestion', 'tree_analogy': 'Trees explanation'}"
-              },
-              {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
+                // 👇 UPDATED PROMPT: STRICT RULES ADDED 👇
+                "text": "Identify the main object in the image. Estimate a Carbon Footprint Score (0-100). "
+                        "YOU MUST FOLLOW THIS STRICT SCORING GUIDE: "
+                        "1. Organic/Food/Paper/Wood = Score 5-30. "
+                        "2. Plastic/Clothing/Glass = Score 30-60. "
+                        "3. Metal/Electronics/Appliances = Score 60-90. "
+                        "4. Vehicles/Heavy Industry = Score 90-100. "
+                        "Return ONLY raw JSON (no markdown) with keys: "
+                        "{'item_name': 'Short Name', 'carbon_score': (integer based on guide), 'shadow_type': 'Category', 'nudge_text': 'Brief suggestion', 'tree_analogy': '1 line comparison'}"
+              }, 
+              {
+                "inline_data": {
+                  "mime_type": "image/jpeg", 
+                  "data": base64Image
+                }
+              }
             ]
           }]
         }),
@@ -352,201 +739,69 @@ class _ScannerScreenState extends State<ScannerScreen> {
         finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
 
-        setState(() { _scanData = parsedData; _isLoading = false; });
-        await _saveToDatabase(parsedData);
-      } else {
-        setState(() { _statusMessage = "Server Error: ${response.statusCode}"; _isLoading = false; });
+        // --- ADD THIS TRICK ---
+        // This uses the item's name to stabilize the score.
+        // If the name is "Notebook", the 'hashCode' is always the same, so the score stays similar.
+        String name = parsedData['item_name'] ?? "Item";
+        int baseScore = parsedData['carbon_score'];
+
+        // This forces the score to be consistent based on the name, within a +/- 5 point variance
+        int consistentScore = baseScore; 
+        // (Optional: Only use this if you want identical scores for identical names)
+        // int consistentScore = (baseScore + (name.hashCode % 10)); 
+
+        // Update the map
+        parsedData['carbon_score'] = consistentScore.clamp(0, 100);
+        // ----------------------
+        
+        int earnedPoints = (100 - (parsedData['carbon_score'] as int)).clamp(10, 100);
+
+        // 1. Add Scan
+        await FirebaseFirestore.instance.collection('scans').add({
+          ...parsedData, 
+          'userId': user.uid,
+          'timestamp': FieldValue.serverTimestamp()
+        });
+
+        // 2. Update User Points
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'totalPoints': FieldValue.increment(earnedPoints)
+        });
+
+        if(mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
+        setState(() { _isLoading = false; });
       }
-    } catch (e) {
-      setState(() { _statusMessage = "Failed. Try again."; _isLoading = false; });
+    } catch (e) { 
+      print(e);
+      setState(() { _isLoading = false; }); 
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("AI Error. Try again.")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
+      body: Center(
+        child: _isLoading ? const CircularProgressIndicator() : Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              height: 400,
-              width: double.infinity,
-              child: _selectedImage == null
-                  ? Container(
-                      color: Theme.of(context).colorScheme.surfaceVariant,
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: const [Icon(Icons.add_a_photo, size: 60, color: Colors.grey), SizedBox(height: 10), Text("Tap Scan to begin")]),
-                    )
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.file(_selectedImage!, fit: BoxFit.cover),
-                        if (_scanData != null) Container(decoration: BoxDecoration(gradient: _getShadowGradient(_scanData!['carbon_score']))),
-                        if (_scanData != null) Positioned(bottom: 20, left: 20, child: Chip(avatar: const Icon(Icons.blur_on, size: 16), label: Text("Visualizing ${_scanData!['shadow_type']}"))),
-                      ],
-                    ),
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(Icons.center_focus_strong, size: 80, color: Theme.of(context).primaryColor),
             ),
-            
-            if (_isLoading) Padding(padding: const EdgeInsets.all(40), child: Column(children: [const CircularProgressIndicator(), const SizedBox(height:10), Text(_statusMessage)])),
-            
-            if (_scanData != null && !_isLoading) Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_scanData!['item_name'] ?? "Item", style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 10),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text("${_scanData!['carbon_score']}", style: TextStyle(fontSize: 60, fontWeight: FontWeight.w900, color: Theme.of(context).colorScheme.primary)),
-                        const Padding(padding: EdgeInsets.only(bottom: 12, left: 8), child: Text("/ 100 Impact", style: TextStyle(fontSize: 18, color: Colors.grey))),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: ListTile(
-                        leading: const Icon(Icons.forest, color: Colors.green, size: 32),
-                        title: const Text("Tree Analogy", style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(_scanData!['tree_analogy'] ?? ""),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Card(
-                      color: Colors.blue.withOpacity(0.1),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: ListTile(
-                        leading: const Icon(Icons.lightbulb, color: Colors.blue, size: 32),
-                        title: const Text("Suggestion", style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(_scanData!['nudge_text'] ?? "No suggestion."),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isLoading ? null : _analyzeImage,
-        icon: const Icon(Icons.center_focus_strong),
-        label: Text(_isLoading ? "Analyzing..." : "SCAN ITEM"),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-}
-
-// ---------------------------------------------------------
-// 6. TRAVEL SCREEN
-// ---------------------------------------------------------
-class TravelScreen extends StatefulWidget {
-  const TravelScreen({super.key});
-  @override
-  State<TravelScreen> createState() => _TravelScreenState();
-}
-
-class _TravelScreenState extends State<TravelScreen> {
-  final _distanceController = TextEditingController();
-  String _selectedMode = "Car";
-  double _calculatedEmission = 0.0;
-  bool _isSaving = false;
-
-  final Map<String, double> _emissionFactors = {
-    "Car": 0.192, "Bus": 0.105, "Motorbike": 0.103, "Train": 0.041, "Bicycle": 0.0, "Walk": 0.0,
-  };
-
-  void _calculateImpact() {
-    double dist = double.tryParse(_distanceController.text) ?? 0.0;
-    setState(() { _calculatedEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0); });
-  }
-
-  Future<void> _logTravel() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (_distanceController.text.isEmpty || user == null) return;
-    setState(() => _isSaving = true);
-    try {
-      await FirebaseFirestore.instance.collection('scans').add({
-        'item_name': "$_selectedMode Trip",
-        'carbon_score': (_calculatedEmission * 100).toInt().clamp(0, 100),
-        'shadow_type': _calculatedEmission > 0.5 ? "High Travel Impact" : "Low Travel Impact",
-        'nudge_text': _selectedMode == "Car" ? "Try public transport to save CO2." : "Great eco-choice!",
-        'tree_analogy': "Emitted ${_calculatedEmission.toStringAsFixed(2)} kg of CO2.",
-        'userId': user.uid,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ Trip Logged!"), backgroundColor: Colors.green));
-      _distanceController.clear();
-      setState(() { _calculatedEmission = 0.0; _isSaving = false; });
-    } catch (e) { setState(() => _isSaving = false); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text("Travel Log", style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            
-            DropdownButtonFormField<String>(
-              value: _selectedMode,
-              decoration: InputDecoration(
-                labelText: "Mode of Transport",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.directions_car),
-              ),
-              items: _emissionFactors.keys.map((String mode) {
-                return DropdownMenuItem<String>(value: mode, child: Text(mode));
-              }).toList(),
-              onChanged: (val) { setState(() { _selectedMode = val!; _calculateImpact(); }); },
-            ),
-            const SizedBox(height: 20),
-            
-            TextField(
-              controller: _distanceController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: "Distance (km)",
-                suffixText: "km",
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.map),
-              ),
-              onChanged: (val) => _calculateImpact(),
-            ),
-            const SizedBox(height: 40),
-            
-            Card(
-              color: Theme.of(context).colorScheme.primaryContainer,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  children: [
-                    Text("Impact Estimate", style: Theme.of(context).textTheme.labelLarge),
-                    Text("${_calculatedEmission.toStringAsFixed(2)} kg", style: Theme.of(context).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const Text("CO₂ Emissions"),
-                  ],
-                ),
-              ),
-            ),
-            const Spacer(),
-            
-            SizedBox(
-              height: 56,
-              child: FilledButton.icon(
-                onPressed: _isSaving ? null : _logTravel,
-                icon: const Icon(Icons.save_alt),
-                label: Text(_isSaving ? "Saving..." : "LOG TRIP"),
-              ),
+            const SizedBox(height: 30),
+            const Text("Scan Object", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text("Analyze carbon footprint instantly", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: _analyzeImage, 
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white
+              ), 
+              child: const Text("OPEN CAMERA")
             ),
           ],
         ),
@@ -556,107 +811,86 @@ class _TravelScreenState extends State<TravelScreen> {
 }
 
 // ---------------------------------------------------------
-// 7. HISTORY SCREEN
+// 9. LEADERBOARD SCREEN (REAL DATA FROM FIREBASE)
 // ---------------------------------------------------------
-class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key});
-
+class LeaderboardScreen extends StatelessWidget {
+  const LeaderboardScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const Center(child: Text("Please Login"));
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
-      // REPLACE THE ENTIRE body: StreamBuilder(...) BLOCK IN HistoryScreen WITH THIS:
-
+      appBar: AppBar(title: const Text("Leaderboard")),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('scans')
-            .where('userId', isEqualTo: user.uid) // ✅ Filter by user ONLY
-            // .orderBy('timestamp', descending: true) ❌ REMOVED to fix loading stuck
-            .snapshots(),
+        // Query users sorted by totalPoints
+        stream: FirebaseFirestore.instance.collection('users').orderBy('totalPoints', descending: true).limit(50).snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) {
-             return Center(child: Text("Error: ${snapshot.error}")); 
-          }
-
-          if (!snapshot.hasData) {
-             return const Center(child: CircularProgressIndicator());
-          }
-
-          // ✅ FIX: Sort the data here on the phone instead of the database
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          
           final docs = snapshot.data!.docs;
-          docs.sort((a, b) {
-             // Sort by timestamp manually (Newest first)
-             Timestamp? timeA = (a.data() as Map)['timestamp'];
-             Timestamp? timeB = (b.data() as Map)['timestamp'];
-             if (timeA == null || timeB == null) return 0;
-             return timeB.compareTo(timeA); 
-          });
 
-          // Calculate Score
-          int totalPoints = 0;
-          for (var doc in docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            totalPoints += (100 - (data['carbon_score'] as int? ?? 50)).clamp(0, 100);
-          }
-
-          return ListView(
+          return ListView.builder(
             padding: const EdgeInsets.all(20),
-            physics: const BouncingScrollPhysics(),
-            children: [
-              // GAMIFICATION CARD
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF00b09b), Color(0xFF96c93d)]),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.4), blurRadius: 15, offset: const Offset(0, 8))],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text("TOTAL POINTS", style: TextStyle(color: Colors.white70, letterSpacing: 1.2, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 5),
-                        Text("Earth Hero", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Text("$totalPoints", style: const TextStyle(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text("Recent Activity", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final data = docs[index].data() as Map<String, dynamic>;
+              final isMe = data['uid'] == myUid;
               
-              if (docs.isEmpty) 
-                const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No scans yet. Start scanning!"))),
-
-              ...docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final int score = data['carbon_score'] ?? 0;
-                Color scoreColor = score < 30 ? Colors.green : (score < 70 ? Colors.orange : Colors.red);
-                
-                return Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: CircleAvatar(
-                      backgroundColor: scoreColor.withOpacity(0.2),
-                      child: Text("$score", style: TextStyle(color: scoreColor, fontWeight: FontWeight.bold)),
-                    ),
-                    title: Text(data['item_name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(data['tree_analogy'] ?? "Processed", maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+              return Card(
+                elevation: isMe ? 4 : 1,
+                color: isMe ? Theme.of(context).primaryColor.withOpacity(0.1) : Theme.of(context).cardTheme.color,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: isMe ? BorderSide(color: Theme.of(context).primaryColor, width: 2) : BorderSide.none),
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: index == 0 ? Colors.amber : (index == 1 ? Colors.grey[400] : (index == 2 ? Colors.orange[300] : Colors.transparent)),
+                    child: Text("${index + 1}", style: TextStyle(color: index < 3 ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
                   ),
-                );
-              }).toList(),
-            ],
+                  title: Text(data['displayName'] ?? "Anonymous", style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal)),
+                  subtitle: isMe ? const Text("This is you!", style: TextStyle(fontSize: 10, color: Colors.blue)) : null,
+                  trailing: Text("${data['totalPoints'] ?? 0} pts", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// 10. PROFILE SCREEN
+// ---------------------------------------------------------
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    return Scaffold(
+      appBar: AppBar(title: const Text("Profile"), actions: [IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: () => FirebaseAuth.instance.signOut())]),
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
+        builder: (context, snapshot) {
+          if(!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+          
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(radius: 50, backgroundColor: Theme.of(context).primaryColor, child: Text(data['displayName']?[0] ?? "U", style: const TextStyle(fontSize: 40, color: Colors.white))),
+                const SizedBox(height: 20),
+                Text(data['displayName'] ?? "User", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Text(user?.email ?? "", style: const TextStyle(color: Colors.grey)),
+                const SizedBox(height: 30),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(color: Theme.of(context).cardTheme.color, borderRadius: BorderRadius.circular(10)),
+                  child: Text("Total Score: ${data['totalPoints'] ?? 0}", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor)),
+                )
+              ],
+            ),
           );
         },
       ),

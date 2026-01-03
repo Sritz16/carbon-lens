@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  google_fonts: ^6.1.0
   cupertino_icons: ^1.0.6
   # 👇 THIS IS THE CRITICAL UPDATE
   google_generative_ai: ^0.4.6 
