@@ -7,7 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart'; // Ensure this is in pubspec.yaml
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:confetti/confetti.dart';
 
 // ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw"; 
@@ -270,8 +271,28 @@ class _MainScreenState extends State<MainScreen> {
 // ---------------------------------------------------------
 // REPLACEMENT: DASHBOARD SCREEN (With Level Popup)
 // ---------------------------------------------------------
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  late ConfettiController _confettiController;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the confetti controller (duration of the blast)
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    super.dispose();
+  }
 
   // Helper: Convert Timestamp to "Time Ago"
   String getTimeAgo(DateTime date) {
@@ -284,15 +305,10 @@ class DashboardScreen extends StatelessWidget {
 
   // Helper: Show the "Total Levels" Dialog
   void _showLevelMap(BuildContext context, int currentPoints, int currentLevel) {
-    // Define the Levels and their Points
-    final Map<int, int> levelMap = {
-      1: 0,
-      2: 100,
-      3: 300,
-      4: 600,
-      5: 1000,
-      6: 2000,
-    };
+    // 🎉 TRIGGER CONFETTI HERE 🎉
+    _confettiController.play();
+
+    final Map<int, int> levelMap = {1: 0, 2: 100, 3: 300, 4: 600, 5: 1000, 6: 2000};
 
     showDialog(
       context: context,
@@ -320,7 +336,7 @@ class DashboardScreen extends StatelessWidget {
                 )
               ),
               trailing: Text("$pointsReq pts"),
-            );
+            ).animate().slideX(begin: 0.2, end: 0, delay: (50 * lvl).ms); // Staggered list anim
           }).toList(),
         ),
         actions: [
@@ -337,152 +353,192 @@ class DashboardScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text("Dashboard")),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
-        builder: (context, userSnap) {
-          if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
-          
-          final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
-          int totalPoints = userData['totalPoints'] ?? 0;
-          
-          // --- LEVEL LOGIC ---
-          List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
-          int currentLevel = 1;
-          int nextGoal = 100;
+      // 1. WRAP BODY IN A STACK
+      body: Stack(
+        alignment: Alignment.topCenter,
+        children: [
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
+            builder: (context, userSnap) {
+              if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
+              
+              final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
+              int totalPoints = userData['totalPoints'] ?? 0;
+              
+              // Level Logic
+              List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
+              int currentLevel = 1;
+              int nextGoal = 100;
 
-          for (int i = 0; i < thresholds.length; i++) {
-             if (totalPoints >= thresholds[i]) {
-                currentLevel = i + 1;
-                // Determine next goal
-                nextGoal = (i + 1 < thresholds.length) ? thresholds[i + 1] : thresholds.last;
-             }
-          }
-          
-          // Prevent division by zero if max level
-          int pointsNeeded = nextGoal - totalPoints;
-          double progress = 0.0;
-          if (currentLevel < thresholds.length) {
-             int prevGoal = thresholds[currentLevel - 1];
-             progress = (totalPoints - prevGoal) / (nextGoal - prevGoal);
-          } else {
-             progress = 1.0; // Max level
-             pointsNeeded = 0;
-          }
+              for (int i = 0; i < thresholds.length; i++) {
+                 if (totalPoints >= thresholds[i]) {
+                    currentLevel = i + 1;
+                    nextGoal = (i + 1 < thresholds.length) ? thresholds[i + 1] : thresholds.last;
+                 }
+              }
+              
+              int pointsNeeded = nextGoal - totalPoints;
+              double progress = 0.0;
+              if (currentLevel < thresholds.length) {
+                 int prevGoal = thresholds[currentLevel - 1];
+                 progress = (totalPoints - prevGoal) / (nextGoal - prevGoal);
+              } else {
+                 progress = 1.0;
+                 pointsNeeded = 0;
+              }
 
-          return Column(
-            children: [
-              // --- GAMIFICATION CARD (CLICKABLE) ---
-              GestureDetector(
-                onTap: () => _showLevelMap(context, totalPoints, currentLevel),
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [primaryColor, primaryColor.withOpacity(0.6)]),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              return Column(
+                children: [
+                  // --- GAMIFICATION CARD ---
+                  GestureDetector(
+                    onTap: () => _showLevelMap(context, totalPoints, currentLevel),
+                    child: Container(
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [primaryColor, primaryColor.withOpacity(0.6)]),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                      ),
+                      child: Column(
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text("LEVEL $currentLevel", style: const TextStyle(color: Colors.white70, letterSpacing: 1.5, fontSize: 12, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 4),
-                              const Text("Earth Guardian", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("LEVEL $currentLevel", style: const TextStyle(color: Colors.white70, letterSpacing: 1.5, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 4),
+                                  const Text("Earth Guardian", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)),
+                                child: Row(children: [
+                                  const Icon(Icons.info_outline, color: Colors.white, size: 16), 
+                                  const SizedBox(width: 4), 
+                                  Text("$totalPoints pts", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+                                ]),
+                              ),
                             ],
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(20)),
-                            child: Row(children: [
-                              const Icon(Icons.info_outline, color: Colors.white, size: 16), 
-                              const SizedBox(width: 4), 
-                              Text("$totalPoints pts", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-                            ]),
+                          const SizedBox(height: 20),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10), 
+                            child: LinearProgressIndicator(
+                              value: progress.clamp(0.0, 1.0), 
+                              minHeight: 8, 
+                              backgroundColor: Colors.black12, 
+                              valueColor: const AlwaysStoppedAnimation(Colors.white)
+                            )
+                          ),
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerRight, 
+                            child: Text(
+                              pointsNeeded > 0 ? "$pointsNeeded pts to Level ${currentLevel + 1}" : "Max Level Reached!", 
+                              style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)
+                            )
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10), 
-                        child: LinearProgressIndicator(
-                          value: progress.clamp(0.0, 1.0), 
-                          minHeight: 8, 
-                          backgroundColor: Colors.black12, 
-                          valueColor: const AlwaysStoppedAnimation(Colors.white)
-                        )
-                      ),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight, 
-                        child: Text(
-                          pointsNeeded > 0 ? "$pointsNeeded pts to Level ${currentLevel + 1}" : "Max Level Reached!", 
-                          style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)
-                        )
-                      ),
-                    ],
+                    ).animate()
+                     .fade(duration: 800.ms)
+                     .slideY(begin: -0.5, end: 0, curve: Curves.easeOutBack)
+                     .shimmer(delay: 1000.ms, duration: 1500.ms),
                   ),
-                ),
-              ),
 
-              // --- HISTORY TITLE ---
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), 
-                child: Align(alignment: Alignment.centerLeft, child: Text("Recent Activity", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))
-              ),
+                  // --- HISTORY TITLE ---
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10), 
+                    child: Align(alignment: Alignment.centerLeft, child: Text("Recent Activity", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))
+                  ),
 
-              // --- SCANS LIST ---
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('scans')
-                      .where('userId', isEqualTo: user.uid)
-                      //.orderBy('timestamp', descending: true) // Uncomment only after creating Index
-                      .snapshots(),
-                  builder: (context, scanSnap) {
-                    if (!scanSnap.hasData) return const Center(child: CircularProgressIndicator());
-                    final docs = scanSnap.data!.docs;
+                  // --- SCANS LIST ---
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('scans')
+                          .where('userId', isEqualTo: user.uid)
+                          // .orderBy('timestamp', descending: true) // Uncomment after indexing
+                          .snapshots(),
+                      builder: (context, scanSnap) {
+                        if (!scanSnap.hasData) return const Center(child: CircularProgressIndicator());
+                        final docs = scanSnap.data!.docs;
 
-                    if (docs.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.history, size: 50, color: Colors.grey[300]), const Text("No scans yet")]));
+                        if (docs.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.history, size: 50, color: Colors.grey[300]), const Text("No scans yet")]));
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: docs.length,
-                      itemBuilder: (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
-                        int score = data['carbon_score'] ?? 0;
-                        Color scoreColor = score < 30 ? Colors.green : (score < 70 ? Colors.orange : Colors.red);
-                        
-                        Timestamp? t = data['timestamp'];
-                        DateTime date = t != null ? t.toDate() : DateTime.now();
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final data = docs[index].data() as Map<String, dynamic>;
+                            int score = data['carbon_score'] ?? 0;
+                            Color scoreColor = score < 30 ? Colors.green : (score < 70 ? Colors.orange : Colors.red);
+                            
+                            Timestamp? t = data['timestamp'];
+                            DateTime date = t != null ? t.toDate() : DateTime.now();
 
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ListTile(
-                            leading: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: scoreColor.withOpacity(0.1), shape: BoxShape.circle),
-                              child: Icon(Icons.eco, color: scoreColor),
-                            ),
-                            title: Text(data['item_name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(getTimeAgo(date)),
-                            trailing: Text("$score", style: TextStyle(color: scoreColor, fontWeight: FontWeight.w900, fontSize: 18)),
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: data))),
-                          ),
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: ListTile(
+                                leading: Hero(
+                                  tag: "icon_${data['timestamp'] ?? index}", // Hero Tag
+                                  child: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(color: scoreColor.withOpacity(0.1), shape: BoxShape.circle),
+                                    child: Icon(Icons.eco, color: scoreColor),
+                                  ),
+                                ),
+                                title: Text(data['item_name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(getTimeAgo(date)),
+                                trailing: Text("$score", style: TextStyle(color: scoreColor, fontWeight: FontWeight.w900, fontSize: 18)),
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: data))),
+                              ),
+                            ).animate(delay: (100 * index).ms).fadeIn().slideX(begin: 0.2, end: 0);
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          
+          // 2. THE CONFETTI WIDGET ON TOP
+          ConfettiWidget(
+            confettiController: _confettiController,
+            blastDirectionality: BlastDirectionality.explosive, // Boom!
+            shouldLoop: false, 
+            colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.purple], 
+            createParticlePath: drawStar, // Custom Star Shape
+          ),
+        ],
       ),
     );
+  }
+
+  // Helper: Draw a Star Shape for Confetti
+  Path drawStar(Size size) {
+    double degToRad(double deg) => deg * (3.1415926535897932 / 180.0);
+    const numberOfPoints = 5;
+    final halfWidth = size.width / 2;
+    final externalRadius = halfWidth;
+    final internalRadius = halfWidth / 2.5;
+    final degreesPerStep = 360 / numberOfPoints;
+    final halfDegreesPerStep = degreesPerStep / 2;
+    final path = Path();
+    final fullAngle = 360;
+    path.moveTo(size.width, halfWidth);
+
+    for (double step = 0; step < fullAngle; step += degreesPerStep) {
+      path.lineTo(halfWidth + externalRadius * 0.9 * -1 * (double.parse((1.0).toString()) * (step + halfDegreesPerStep) / 100), // Approximate for simple star
+          halfWidth + externalRadius * 0.9 * (double.parse((1.0).toString()) * (step + halfDegreesPerStep) / 100));
+    }
+    path.addOval(Rect.fromCircle(center: Offset(halfWidth, halfWidth), radius: 4)); // Fallback simple dot if star math fails
+    return path;
   }
 }
 
@@ -511,8 +567,11 @@ class DetailScreen extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                   Icon(score < 50 ? Icons.eco : Icons.cloud_off, size: 120, color: color.withOpacity(0.2)),
-                   Column(
+                    Hero(
+                        tag: "icon_${data['timestamp']}", 
+                        child: Icon(score < 50 ? Icons.eco : Icons.cloud_off, size: 120, color: color.withOpacity(0.2))
+                      ),                   
+                      Column(
                      mainAxisAlignment: MainAxisAlignment.center,
                      children: [
                        Text("$score", style: TextStyle(fontSize: 80, fontWeight: FontWeight.w900, color: color)),
@@ -766,7 +825,11 @@ class _TravelScreenState extends State<TravelScreen> {
                       ],
                     ),
                   ),
-                );
+                // At the closing parenthesis of the GestureDetector container:
+              ).animate()
+              .fade(duration: 800.ms)
+              .slideY(begin: -0.5, end: 0, curve: Curves.easeOutBack) // Bouncy slide from top
+              .shimmer(delay: 1000.ms, duration: 1500.ms); // Shiny reflection effect
               }).toList(),
             ),
 
@@ -817,6 +880,7 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
+  
 
   Future<void> _analyzeImage() async {
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
@@ -929,7 +993,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 foregroundColor: Colors.white
               ), 
               child: const Text("OPEN CAMERA")
-            ),
+            )
+            // ANIMATION CODE
+            .animate(onPlay: (controller) => controller.repeat(reverse: true))
+            .scaleXY(begin: 1.0, end: 1.1, duration: 1000.ms, curve: Curves.easeInOut)
+            .elevation(begin: 0, end: 10),
           ],
         ),
       ),
