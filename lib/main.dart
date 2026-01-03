@@ -12,6 +12,9 @@ import 'package:google_fonts/google_fonts.dart'; // Ensure this is in pubspec.ya
 // ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw"; 
 
+// 1. ADD THIS GLOBAL NOTIFIER
+final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.system);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -24,70 +27,72 @@ void main() async {
   runApp(const CarbonTrackerApp());
 }
 
-// ---------------------------------------------------------
-// 1. APP ROOT & MODERN THEME
-// ---------------------------------------------------------
 class CarbonTrackerApp extends StatelessWidget {
   const CarbonTrackerApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Carbon Shadow',
-      themeMode: ThemeMode.system,
-      
-      // --- LIGHT THEME (Forest & Clean) ---
-      theme: ThemeData(
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: const Color(0xFFF4F7F6),
-        primaryColor: const Color(0xFF006C50), // Forest Green
-        colorScheme: ColorScheme.light(
-          primary: const Color(0xFF006C50),
-          secondary: const Color(0xFF00D1A3),
-          surface: Colors.white,
-          onSurface: const Color(0xFF1A1C19),
-        ),
-        useMaterial3: true,
-        cardTheme: CardThemeData(
-          elevation: 2, 
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: Colors.white,
-          shadowColor: Colors.black12,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent, 
-          elevation: 0, 
-          centerTitle: true,
-          titleTextStyle: TextStyle(color: Color(0xFF006C50), fontWeight: FontWeight.w900, fontSize: 22)
-        ),
-      ),
+    // 2. WRAP MATERIALAPP IN LISTENER
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (_, mode, __) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Carbon Shadow',
+          themeMode: mode, // Uses the notifier value
+          
+          // LIGHT THEME (Ensuring it looks BRIGHT)
+          theme: ThemeData(
+            brightness: Brightness.light,
+            scaffoldBackgroundColor: const Color(0xFFF4F7F6), // Soft White
+            primaryColor: const Color(0xFF006C50),
+            colorScheme: ColorScheme.light(
+              primary: const Color(0xFF006C50),
+              secondary: const Color(0xFF00D1A3),
+              surface: Colors.white,
+              onSurface: const Color(0xFF1A1C19),
+            ),
+            useMaterial3: true,
+            cardTheme: CardThemeData(
+              elevation: 2, 
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: Colors.white,
+            ),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.transparent, 
+              elevation: 0, 
+              centerTitle: true,
+              titleTextStyle: TextStyle(color: Color(0xFF006C50), fontWeight: FontWeight.w900, fontSize: 22)
+            ),
+          ),
 
-      // --- DARK THEME (Cyber & Neon) ---
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        primaryColor: const Color(0xFF00E676), // Neon Green
-        colorScheme: ColorScheme.dark(
-          primary: const Color(0xFF00E676),
-          secondary: const Color(0xFF00A878),
-          surface: const Color(0xFF1E1E1E),
-          onSurface: const Color(0xFFE0E0E0),
-        ),
-        useMaterial3: true,
-        cardTheme: CardThemeData(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          color: const Color(0xFF1E1E1E),
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent, 
-          elevation: 0,
-          centerTitle: true,
-          titleTextStyle: TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.w900, fontSize: 22)
-        ),
-      ),
-      home: const AuthGate(),
+          // DARK THEME
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: const Color(0xFF121212),
+            primaryColor: const Color(0xFF00E676),
+            colorScheme: ColorScheme.dark(
+              primary: const Color(0xFF00E676),
+              secondary: const Color(0xFF00A878),
+              surface: const Color(0xFF1E1E1E),
+              onSurface: const Color(0xFFE0E0E0),
+            ),
+            useMaterial3: true,
+            cardTheme: CardThemeData(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              color: const Color(0xFF1E1E1E),
+            ),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.transparent, 
+              elevation: 0,
+              centerTitle: true,
+              titleTextStyle: TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.w900, fontSize: 22)
+            ),
+          ),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }
@@ -600,77 +605,199 @@ class TravelScreen extends StatefulWidget {
 
 class _TravelScreenState extends State<TravelScreen> {
   final _distanceController = TextEditingController();
-  String _selectedMode = "Car";
-  double _calculatedEmission = 0.0;
+  String _selectedMode = "Bus"; // Default to a medium option
   bool _isSaving = false;
-  final Map<String, double> _emissionFactors = {"Car": 0.192, "Bus": 0.105, "Motorbike": 0.103, "Train": 0.041, "Bicycle": 0.0, "Walk": 0.0};
 
-  void _calculateImpact() {
-    double dist = double.tryParse(_distanceController.text) ?? 0.0;
-    setState(() { _calculatedEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0); });
+  // Emissions per KM (kg)
+  final Map<String, double> _emissionFactors = {
+    "Car": 0.192,
+    "Bus": 0.105,
+    "Motorbike": 0.103,
+    "Train": 0.041,
+    "Bicycle": 0.0,
+    "Walk": 0.0
+  };
+
+  // --- GAMIFIED POPUP ---
+  void _showRewardDialog(double savedCo2, int earnedPoints, String mode) {
+    String message = "Good job logging your trip!";
+    IconData icon = Icons.thumb_up;
+    Color color = Colors.blue;
+
+    if (savedCo2 > 0) {
+      message = "You saved ${savedCo2.toStringAsFixed(2)}kg of CO2 compared to driving!";
+      icon = Icons.eco;
+      color = Colors.green;
+    } else if (mode == "Car") {
+      message = "Next time, try a bus or train to earn more points!";
+      icon = Icons.directions_car;
+      color = Colors.orange;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, size: 50, color: color),
+            ),
+            const SizedBox(height: 20),
+            Text("+$earnedPoints PTS", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 10),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
+                child: const Text("AWESOME!"),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _logTravel() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (_distanceController.text.isEmpty || user == null) return;
+    double dist = double.tryParse(_distanceController.text) ?? 0.0;
+    
+    if (dist <= 0 || user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter a valid distance")));
+      return;
+    }
+
     setState(() => _isSaving = true);
     
-    // Points Logic: Less Carbon = More Points. Max 100 per trip.
-    int earnedPoints = (100 - (_calculatedEmission * 10)).toInt().clamp(10, 100);
+    // 1. Calculate Emissions
+    double myEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0);
+    double carEmission = dist * 0.192; // Baseline
+    double savedCo2 = (carEmission - myEmission).clamp(0.0, 999.0);
+
+    // 2. Gamification Math
+    // Base points (10) + Bonus for saving CO2 (10 pts per kg saved)
+    int earnedPoints = (10 + (savedCo2 * 20)).toInt();
+    // Cap max points per trip to prevent cheating
+    if (earnedPoints > 150) earnedPoints = 150; 
+    
+    // Invert Score for visual (Lower Carbon = Higher Visual Score in the list)
+    int visualScore = (100 - (myEmission * 10)).toInt().clamp(0, 100);
 
     try {
-      // 1. Add Scan
+      // 3. Save to DB
       await FirebaseFirestore.instance.collection('scans').add({
         'item_name': "$_selectedMode Trip", 
-        'carbon_score': (_calculatedEmission * 100).toInt().clamp(0, 100), // Visual Score
+        'carbon_score': visualScore, 
         'shadow_type': "Travel", 
-        'nudge_text': _selectedMode == "Car" ? "Try public transport!" : "Great eco-choice!", 
-        'tree_analogy': "Emitted ${_calculatedEmission.toStringAsFixed(2)} kg CO2", 
+        'nudge_text': savedCo2 > 0.1 ? "Great choice! You beat the car emission." : "Consider carpooling next time.", 
+        'tree_analogy': "Emitted ${myEmission.toStringAsFixed(2)} kg CO2", 
         'userId': user.uid, 
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // 2. UPDATE USER TOTAL POINTS (For Leaderboard)
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
         'totalPoints': FieldValue.increment(earnedPoints)
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ Trip Logged! +$earnedPoints pts"), backgroundColor: Colors.green));
+      
+      // 4. Show Reward
       _distanceController.clear();
-      setState(() { _calculatedEmission = 0.0; _isSaving = false; });
-    } catch (e) { setState(() => _isSaving = false); }
+      setState(() => _isSaving = false);
+      _showRewardDialog(savedCo2, earnedPoints, _selectedMode);
+
+    } catch (e) { 
+      setState(() => _isSaving = false); 
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Travel Log")),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Theme.of(context).cardTheme.color, borderRadius: BorderRadius.circular(16)),
-              child: Column(
-                children: [
-                  DropdownButtonFormField<String>(
-                    value: _selectedMode,
-                    decoration: InputDecoration(labelText: "Transport Mode", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
-                    items: _emissionFactors.keys.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                    onChanged: (val) { setState(() { _selectedMode = val!; _calculateImpact(); }); },
+            const Text("How did you move today?", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            
+            // Transport Icons Grid
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: _emissionFactors.keys.map((mode) {
+                bool isSelected = _selectedMode == mode;
+                IconData icon;
+                switch(mode) {
+                  case "Car": icon = Icons.directions_car; break;
+                  case "Bus": icon = Icons.directions_bus; break;
+                  case "Train": icon = Icons.train; break;
+                  case "Bicycle": icon = Icons.directions_bike; break;
+                  case "Walk": icon = Icons.directions_walk; break;
+                  default: icon = Icons.motorcycle;
+                }
+
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedMode = mode),
+                  child: Container(
+                    width: 80, height: 80,
+                    decoration: BoxDecoration(
+                      color: isSelected ? Theme.of(context).primaryColor : Theme.of(context).cardTheme.color,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [if(isSelected) BoxShadow(color: Theme.of(context).primaryColor.withOpacity(0.4), blurRadius: 8)],
+                      border: Border.all(color: isSelected ? Colors.transparent : Colors.grey.withOpacity(0.3))
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, color: isSelected ? Colors.white : Colors.grey, size: 30),
+                        const SizedBox(height: 5),
+                        Text(mode, style: TextStyle(fontSize: 10, color: isSelected ? Colors.white : Colors.grey, fontWeight: FontWeight.bold))
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 15),
-                  TextField(controller: _distanceController, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: "Distance (km)", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))), onChanged: (val) => _calculateImpact()),
-                ],
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 30),
+            
+            TextField(
+              controller: _distanceController, 
+              keyboardType: TextInputType.number, 
+              decoration: InputDecoration(
+                labelText: "Distance (km)", 
+                prefixIcon: const Icon(Icons.map),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                filled: true,
+                fillColor: Theme.of(context).cardTheme.color
               ),
             ),
-            const SizedBox(height: 30),
-            Text("Est. Emission", style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
-            Text("${_calculatedEmission.toStringAsFixed(2)} kg", style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900)),
-            const Spacer(),
-            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: _isSaving ? null : _logTravel, style: ElevatedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, foregroundColor: Colors.white), child: Text(_isSaving ? "LOGGING..." : "LOG TRIP & EARN POINTS"))),
+            
+            const SizedBox(height: 40),
+            SizedBox(
+              width: double.infinity, 
+              height: 55, 
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _logTravel, 
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor, 
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                ), 
+                child: Text(_isSaving ? "CALCULATING..." : "LOG TRIP & EARN POINTS")
+              )
+            ),
           ],
         ),
       ),
@@ -862,13 +989,26 @@ class LeaderboardScreen extends StatelessWidget {
 // ---------------------------------------------------------
 // 10. PROFILE SCREEN
 // ---------------------------------------------------------
+// ---------------------------------------------------------
+// REPLACEMENT: PROFILE SCREEN (With Theme Toggle)
+// ---------------------------------------------------------
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    
     return Scaffold(
-      appBar: AppBar(title: const Text("Profile"), actions: [IconButton(icon: const Icon(Icons.logout, color: Colors.red), onPressed: () => FirebaseAuth.instance.signOut())]),
+      appBar: AppBar(
+        title: const Text("Profile"), 
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.red), 
+            onPressed: () => FirebaseAuth.instance.signOut()
+          )
+        ]
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
         builder: (context, snapshot) {
@@ -879,16 +1019,56 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircleAvatar(radius: 50, backgroundColor: Theme.of(context).primaryColor, child: Text(data['displayName']?[0] ?? "U", style: const TextStyle(fontSize: 40, color: Colors.white))),
+                // Avatar
+                CircleAvatar(
+                  radius: 50, 
+                  backgroundColor: Theme.of(context).primaryColor, 
+                  child: Text(
+                    data['displayName']?[0] ?? "U", 
+                    style: const TextStyle(fontSize: 40, color: Colors.white)
+                  )
+                ),
                 const SizedBox(height: 20),
+                
+                // Name & Email
                 Text(data['displayName'] ?? "User", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 Text(user?.email ?? "", style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 30),
+                
+                // Score Box
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(color: Theme.of(context).cardTheme.color, borderRadius: BorderRadius.circular(10)),
-                  child: Text("Total Score: ${data['totalPoints'] ?? 0}", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor)),
-                )
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardTheme.color, 
+                    borderRadius: BorderRadius.circular(10)
+                  ),
+                  child: Text(
+                    "Total Score: ${data['totalPoints'] ?? 0}", 
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor)
+                  ),
+                ),
+                
+                // 👇 ADDED: THEME TOGGLE BUTTON 👇
+                const SizedBox(height: 40),
+                ValueListenableBuilder<ThemeMode>(
+                  valueListenable: themeNotifier, // Listens to the global variable
+                  builder: (context, mode, child) {
+                    bool isLight = mode == ThemeMode.light;
+                    return ElevatedButton.icon(
+                      onPressed: () {
+                        // Toggle Logic
+                        themeNotifier.value = isLight ? ThemeMode.dark : ThemeMode.light;
+                      },
+                      icon: Icon(isLight ? Icons.dark_mode : Icons.light_mode),
+                      label: Text(isLight ? "Switch to Dark Mode" : "Switch to Light Mode"),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                        backgroundColor: isLight ? Colors.grey[800] : Colors.amber,
+                        foregroundColor: isLight ? Colors.white : Colors.black,
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           );
