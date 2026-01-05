@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -8,7 +9,8 @@ import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:confetti/confetti.dart';
-import 'package:model_viewer_plus/model_viewer_plus.dart';
+import 'realtime_scanner.dart';
+
 
 // ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw"; 
@@ -356,7 +358,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(title: const Text("Dashboard")),
       floatingActionButton: FloatingActionButton.extended(
     onPressed: () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const ArScreen()));
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeScanner()));
     },
     backgroundColor: Colors.deepPurpleAccent,
     foregroundColor: Colors.white,
@@ -881,8 +883,10 @@ class _TravelScreenState extends State<TravelScreen> {
 // ---------------------------------------------------------
 // 8. SCANNER SCREEN (With Gemini & Database Update)
 // ---------------------------------------------------------
+
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
+
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
 }
@@ -890,20 +894,30 @@ class ScannerScreen extends StatefulWidget {
 class _ScannerScreenState extends State<ScannerScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  
 
+  // 📸 THE CORE FUNCTION
   Future<void> _analyzeImage() async {
-    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    // 1. Pick Image
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
     if (photo == null) return;
-    setState(() { _isLoading = true; });
 
+    setState(() => _isLoading = true);
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+
+    if (user == null) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please login first")));
+      return;
+    }
 
     try {
+      // 2. Prepare Image for AI
+      // NOTE: Using `await photo.readAsBytes()` works on both Web & Mobile!
       final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
-      final cleanKey = apiKey.trim();
+      
+      // 3. Call Gemini API
+      final cleanKey = apiKey.trim(); // Ensure your global apiKey variable is accessible
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$cleanKey');
 
       final response = await http.post(
@@ -913,15 +927,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
           "contents": [{
             "parts": [
               {
-                // 👇 UPDATED PROMPT: STRICT RULES ADDED 👇
-                "text": "Identify the main object in the image. Estimate a Carbon Footprint Score (0-100). "
-                        "YOU MUST FOLLOW THIS STRICT SCORING GUIDE: "
-                        "1. Organic/Food/Paper/Wood = Score 5-30. "
-                        "2. Plastic/Clothing/Glass = Score 30-60. "
-                        "3. Metal/Electronics/Appliances = Score 60-90. "
-                        "4. Vehicles/Heavy Industry = Score 90-100. "
-                        "Return ONLY raw JSON (no markdown) with keys: "
-                        "{'item_name': 'Short Name', 'carbon_score': (integer based on guide), 'shadow_type': 'Category', 'nudge_text': 'Brief suggestion', 'tree_analogy': '1 line comparison'}"
+                "text": "Identify the main object. Estimate Carbon Footprint Score (0-100). "
+                        "SCORING RULES: "
+                        "Organic/Food = 5-30. "
+                        "Plastic/Glass = 30-60. "
+                        "Metal/Electronics = 60-90. "
+                        "Vehicles/Industrial = 90-100. "
+                        "Return ONLY raw JSON: "
+                        "{'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String'}"
               }, 
               {
                 "inline_data": {
@@ -935,81 +948,130 @@ class _ScannerScreenState extends State<ScannerScreen> {
       );
 
       if (response.statusCode == 200) {
+        // 4. Parse AI Response
         final jsonResponse = jsonDecode(response.body);
         String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+        
+        // Clean up markdown if Gemini adds it
         finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
 
-        // --- ADD THIS TRICK ---
-        // This uses the item's name to stabilize the score.
-        // If the name is "Notebook", the 'hashCode' is always the same, so the score stays similar.
-        String name = parsedData['item_name'] ?? "Item";
-        int baseScore = parsedData['carbon_score'];
-
-        // This forces the score to be consistent based on the name, within a +/- 5 point variance
-        int consistentScore = baseScore; 
-        // (Optional: Only use this if you want identical scores for identical names)
-        // int consistentScore = (baseScore + (name.hashCode % 10)); 
-
-        // Update the map
-        parsedData['carbon_score'] = consistentScore.clamp(0, 100);
-        // ----------------------
+        // 5. 🛠️ STABILIZATION TRICK 🛠️
+        // This ensures 'Apple' always gets the same score (within variance).
+        String name = parsedData['item_name'] ?? "Unknown Item";
+        int baseScore = parsedData['carbon_score'] ?? 50;
         
-        int earnedPoints = (100 - (parsedData['carbon_score'] as int)).clamp(10, 100);
+        // Create a consistent offset (-5 to +5) based on the name
+        int nameOffset = (name.hashCode % 11) - 5; 
+        int consistentScore = (baseScore + nameOffset).clamp(0, 100);
+        
+        // Apply back to data
+        parsedData['carbon_score'] = consistentScore;
 
-        // 1. Add Scan
+        // 6. Calculate Player Points (Invert: Lower Carbon = Higher Points)
+        int earnedPoints = (100 - consistentScore).clamp(10, 100);
+
+        // 7. Save to Firebase
         await FirebaseFirestore.instance.collection('scans').add({
           ...parsedData, 
           'userId': user.uid,
           'timestamp': FieldValue.serverTimestamp()
         });
 
-        // 2. Update User Points
         await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
           'totalPoints': FieldValue.increment(earnedPoints)
         });
 
-        if(mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
-        setState(() { _isLoading = false; });
+        // 8. Go to Details
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        
+        Navigator.push(
+          context, 
+          MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData))
+        );
+
+      } else {
+        throw Exception("API Error: ${response.statusCode}");
       }
-    } catch (e) { 
-      print(e);
-      setState(() { _isLoading = false; }); 
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("AI Error. Try again.")));
+    } catch (e) {
+      print("Scan Error: $e");
+      setState(() => _isLoading = false);
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis failed. Try again.")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Center(
-        child: _isLoading ? const CircularProgressIndicator() : Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(30),
-              decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(Icons.center_focus_strong, size: 80, color: Theme.of(context).primaryColor),
-            ),
-            const SizedBox(height: 30),
-            const Text("Scan Object", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const Text("Analyze carbon footprint instantly", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 30),
-            ElevatedButton(
-              onPressed: _analyzeImage, 
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                backgroundColor: Theme.of(context).primaryColor,
-                foregroundColor: Colors.white
-              ), 
-              child: const Text("OPEN CAMERA")
-            )
-            // ANIMATION CODE
-            .animate(onPlay: (controller) => controller.repeat(reverse: true))
-            .scaleXY(begin: 1.0, end: 1.1, duration: 1000.ms, curve: Curves.easeInOut)
-            .elevation(begin: 0, end: 10),
-          ],
-        ),
+        child: _isLoading 
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 20),
+                  Text("Analyzing Molecular Structure...", style: TextStyle(color: Theme.of(context).primaryColor)),
+                  const SizedBox(height: 5),
+                  const Text("Calculating Carbon Shadow...", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Animated Scanner Icon
+                  Container(
+                    padding: const EdgeInsets.all(40),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.1), 
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3), width: 2)
+                    ),
+                    child: Icon(Icons.qr_code_scanner, size: 80, color: Theme.of(context).primaryColor),
+                  )
+                  .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                  .scaleXY(begin: 1.0, end: 1.05, duration: 2.seconds) // Breathing effect
+                  .shimmer(duration: 2.seconds, color: Colors.white54), // Shiny scan effect
+
+                  const SizedBox(height: 40),
+                  
+                  const Text(
+                    "Carbon Scanner Ready", 
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)
+                  ),
+                  const SizedBox(height: 10),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      "Point your camera at any object to reveal its invisible carbon impact.", 
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey)
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 50),
+
+                  // The Main Button
+                  ElevatedButton.icon(
+                    onPressed: _analyzeImage, 
+                    icon: const Icon(Icons.camera_alt),
+                    label: const Text("INITIATE SCAN"),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      elevation: 10,
+                      shadowColor: Theme.of(context).primaryColor.withOpacity(0.5),
+                    ), 
+                  )
+                  .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                  .scaleXY(begin: 1.0, end: 1.1, duration: 1.seconds) // Pulse invitation
+                  .elevation(begin: 5, end: 15),
+                ],
+              ),
       ),
     );
   }
@@ -1160,69 +1222,136 @@ class ProfileScreen extends StatelessWidget {
 // NEW SCREEN: AR IMPACT VISUALIZER
 // ---------------------------------------------------------
 
+// ---------------------------------------------------------
+// REPLACEMENT: AR SCREEN (The "Hologram" Hack)
+// --------------------------
+// ---------------------------------------------------------
+// NEW: AR SHADOW VISUALIZER
+// ---------------------------------------------------------
 class ArScreen extends StatefulWidget {
-  const ArScreen({super.key});
+  final int score; // We pass the score here!
+  
+  // Default to 50 if opened without a scan
+  const ArScreen({super.key, this.score = 50}); 
 
   @override
   State<ArScreen> createState() => _ArScreenState();
 }
 
 class _ArScreenState extends State<ArScreen> {
-  // Use a public URL for a GLB 3D model. 
-  // Fun Fact: You can replace this URL with any .glb file link (e.g., a Tree).
-  // For now, we use a cool " Futuristic Earth" or "Astronaut" placeholder.
-  final String modelUrl = "assets/astronaut.glb"; 
-
   @override
   Widget build(BuildContext context) {
+    // 1. Determine the "Mode" based on score
+    bool isHighImpact = widget.score > 60;  // Bad (Red/Black)
+    bool isLowImpact = widget.score < 30;   // Good (Green/Gold)
+    // Else: Medium (Grey/Orange)
+
+    Color dominantColor = isHighImpact ? Colors.red.shade900 : (isLowImpact ? Colors.greenAccent : Colors.orange);
+    String statusText = isHighImpact ? "CRITICAL CARBON LEVEL" : (isLowImpact ? "ECO-FRIENDLY" : "MODERATE IMPACT");
+
     return Scaffold(
-      backgroundColor: Colors.black, // AR looks best on dark bg
-      appBar: AppBar(
-        title: const Text("AR Guardian Mode", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
+      backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          // 1. The 3D Viewer
-          ModelViewer(
-            backgroundColor: Colors.transparent,
-            src: modelUrl, // The 3D Model
-            alt: "A 3D model of your impact",
-            ar: true, // 👈 THIS TURNS ON AR MODE!
-            autoRotate: true,
-            cameraControls: true,
-            disableZoom: false,
+          // LAYER 1: The Camera Feed (Simulated)
+          Image.network(
+            "https://images.unsplash.com/photo-1550989460-0adf9ea622e2?q=80&w=1000&auto=format&fit=crop", // A "Tech" background texture
+            fit: BoxFit.cover,
+            color: isHighImpact ? Colors.black.withOpacity(0.7) : Colors.black.withOpacity(0.3), // Darker if bad
+            colorBlendMode: BlendMode.darken,
           ),
 
-          // 2. Instructions Overlay
+          // LAYER 2: The "Shadow" / "Glow" Effect
+          // This is the core visual warning
+          Center(
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                // THE SHADOW LOGIC:
+                boxShadow: [
+                  BoxShadow(
+                    color: dominantColor.withOpacity(isHighImpact ? 0.6 : 0.4), 
+                    blurRadius: isHighImpact ? 100 : 60, // Smoke is blurry, Glow is tighter
+                    spreadRadius: isHighImpact ? 50 : 20, // Smoke spreads more
+                  ),
+                ],
+                // If High Impact, we add a "Smoke" gradient
+                gradient: isHighImpact 
+                  ? RadialGradient(colors: [Colors.black.withOpacity(0.8), Colors.transparent]) 
+                  : RadialGradient(colors: [Colors.white.withOpacity(0.2), Colors.transparent]),
+              ),
+            )
+            .animate(onPlay: (controller) => controller.repeat(reverse: true))
+            .scaleXY(begin: 1.0, end: isHighImpact ? 1.5 : 1.1, duration: isHighImpact ? 1.seconds : 3.seconds) // Bad items "pulse" fast
+          ),
+
+          // LAYER 3: The Hologram Icon
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isHighImpact ? Icons.warning_amber_rounded : (isLowImpact ? Icons.eco : Icons.info_outline),
+                  size: 100,
+                  color: isHighImpact ? Colors.red : (isLowImpact ? Colors.white : Colors.amber),
+                )
+                .animate()
+                .shake(hz: isHighImpact ? 5 : 0) // Shake if dangerous!
+                .fade(duration: 1.seconds),
+                
+                const SizedBox(height: 200), // Push text down
+              ],
+            ),
+          ),
+
+          // LAYER 4: The HUD (Heads Up Display)
           Positioned(
-            bottom: 40,
+            bottom: 50,
             left: 20,
             right: 20,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24)
+                color: Colors.black87,
+                border: Border.all(color: dominantColor.withOpacity(0.5)),
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Column(
                 children: [
                   Text(
-                    "Visualize Your Impact",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                    statusText,
+                    style: TextStyle(
+                      color: dominantColor, 
+                      fontWeight: FontWeight.bold, 
+                      letterSpacing: 2,
+                      fontSize: 18
+                    ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Text(
-                    "Tap the icon in the corner to place this Guardian in your room!",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white70),
+                    "Carbon Shadow Density: ${widget.score}%",
+                    style: const TextStyle(color: Colors.white70),
                   ),
+                  // Progress Bar
+                  const SizedBox(height: 15),
+                  LinearProgressIndicator(
+                    value: widget.score / 100,
+                    backgroundColor: Colors.grey[900],
+                    valueColor: AlwaysStoppedAnimation(dominantColor),
+                    minHeight: 5,
+                  )
                 ],
               ),
-            ),
+            ).animate().slideY(begin: 1.0, end: 0),
+          ),
+          
+          // Back Button
+          Positioned(
+            top: 50, left: 20,
+            child: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
           )
         ],
       ),
