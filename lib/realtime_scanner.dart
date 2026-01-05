@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
@@ -17,22 +18,25 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
   List<DetectedObject> _objects = [];
+  Size? _cameraImageSize; // To store exact camera resolution
 
-  // 🎨 COLORS FOR THE AR LIGHTS
+  // 🎨 PAINTS
   final Paint _goodPaint = Paint()
-    ..color = Colors.greenAccent.withOpacity(0.5)
-    ..style = PaintingStyle.fill
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20); // Glowing Light Effect
+    ..color = Colors.greenAccent.withOpacity(0.4)
+    ..style = PaintingStyle.fill;
 
   final Paint _badPaint = Paint()
-    ..color = Colors.redAccent.withOpacity(0.5)
-    ..style = PaintingStyle.fill
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20); // Glowing Light Effect
+    ..color = Colors.redAccent.withOpacity(0.4)
+    ..style = PaintingStyle.fill;
+
+  final Paint _unknownPaint = Paint() // New: For objects with no clear label
+    ..color = Colors.blueAccent.withOpacity(0.3)
+    ..style = PaintingStyle.fill;
 
   final Paint _borderPaint = Paint()
     ..color = Colors.white
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 2;
+    ..strokeWidth = 3;
 
   @override
   void initState() {
@@ -42,8 +46,6 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
   }
 
   void _initializeDetector() {
-    // We use the "Base" model which detects 5 categories:
-    // Food, Plant (Good) vs HomeGood, FashionGood (Bad/Consumerism)
     final options = ObjectDetectorOptions(
       mode: DetectionMode.stream,
       classifyObjects: true,
@@ -54,22 +56,21 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
 
   Future<void> _initializeCamera() async {
     final cameras = await availableCameras();
-    // Use the back camera
     final camera = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back);
 
     _controller = CameraController(
       camera,
-      ResolutionPreset.medium, // Medium is faster for ML
+      ResolutionPreset.medium, // keep medium for performance
       enableAudio: false,
       imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
     );
 
     await _controller.initialize();
     
-    // START STREAMING FRAMES
     _controller.startImageStream((image) {
-      if (_isProcessing) return; // Drop frame if busy
+      if (_isProcessing) return;
       _isProcessing = true;
+      _cameraImageSize = Size(image.width.toDouble(), image.height.toDouble());
       _processImage(image);
     });
 
@@ -77,42 +78,45 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
   }
 
   Future<void> _processImage(CameraImage image) async {
-    // 1. Convert CameraImage to ML Kit InputImage
     final inputImage = _inputImageFromCameraImage(image);
     if (inputImage == null) {
       _isProcessing = false;
       return;
     }
 
-    // 2. Detect Objects
-    final objects = await _objectDetector.processImage(inputImage);
+    try {
+      final objects = await _objectDetector.processImage(inputImage);
+      
+      // DEBUG PRINT: Check your terminal!
+      if (objects.isNotEmpty) {
+        print("🔎 Found ${objects.length} objects!");
+        for(var obj in objects) {
+             print("Label: ${obj.labels.map((l) => l.text).join(', ')}");
+        }
+      }
 
-    // 3. Update UI
-    if (mounted) {
-      setState(() {
-        _objects = objects;
-      });
+      if (mounted) {
+        setState(() {
+          _objects = objects;
+        });
+      }
+    } catch (e) {
+      print("Error detecting objects: $e");
     }
     _isProcessing = false;
   }
 
   // ------------------------------------------------------------------------
-  // 🧹 UGLY BOILERPLATE TO CONVERT IMAGE FORMATS (REQUIRED FOR ML KIT)
+  // 🧹 CONVERTER UTILITY
   // ------------------------------------------------------------------------
   InputImage? _inputImageFromCameraImage(CameraImage image) {
     final camera = _controller.description;
     final sensorOrientation = camera.sensorOrientation;
-    // For simplicity in hackathon, assuming Portrait Mode on Android
-    final rotation = InputImageRotation.rotation90deg; 
+    final rotation = InputImageRotationValue.fromRawValue(sensorOrientation) ?? InputImageRotation.rotation90deg;
     
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
     if (format == null) return null;
 
-    // Combining bytes for Android (NV21)
-    if (Platform.isAndroid && image.planes.length != 3) return null;
-    
-    // NOTE: This is a simplified converter for the hackathon. 
-    // Ideally you use the official full converter snippet.
     final plane = image.planes.first;
     
     return InputImage.fromBytes(
@@ -143,32 +147,33 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Camera Feed
           CameraPreview(_controller),
+          
+          if (_cameraImageSize != null)
+            CustomPaint(
+              painter: ArLightPainter(
+                _objects, 
+                _cameraImageSize!, // Pass the real camera size
+                _goodPaint, 
+                _badPaint, 
+                _unknownPaint,
+                _borderPaint
+              ),
+            ),
 
-          // 2. The "AR Light" Overlay
-          CustomPaint(
-            painter: ArLightPainter(_objects, _goodPaint, _badPaint, _borderPaint),
-          ),
-
-          // 3. UI Overlay
           Positioned(
-            bottom: 50,
-            left: 20, 
-            right: 20,
+            bottom: 50, left: 20, right: 20,
             child: Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-              child: const Text(
-                "SCANNING ENVIRONMENT...\nGreen = Eco Friendly | Red = High Carbon",
+              child: Text(
+                "Detecting: ${_objects.length} Objects\nBlue = Unknown | Green = Eco | Red = High Carbon",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
           ),
-          
-          // Back Button
-          Positioned(top: 50, left: 20, child: BackButton(color: Colors.white)),
+          Positioned(top: 50, left: 20, child: const BackButton(color: Colors.white)),
         ],
       ),
     );
@@ -176,26 +181,29 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
 }
 
 // ---------------------------------------------------------
-// 🖌️ THE PAINTER: Draws lights over objects
+// 🖌️ FIXED SCALING PAINTER
+// ---------------------------------------------------------
+// ---------------------------------------------------------
+// 🖌️ UPDATED PAINTER: SCANS EVERYTHING
 // ---------------------------------------------------------
 class ArLightPainter extends CustomPainter {
   final List<DetectedObject> objects;
-  final Paint goodPaint;
-  final Paint badPaint;
+  final Size absoluteImageSize;
+  final Paint goodPaint; // Green
+  final Paint badPaint;  // Red
+  final Paint unknownPaint; // Yellow (Analyzing)
   final Paint borderPaint;
 
-  ArLightPainter(this.objects, this.goodPaint, this.badPaint, this.borderPaint);
+  ArLightPainter(this.objects, this.absoluteImageSize, this.goodPaint, this.badPaint, this.unknownPaint, this.borderPaint);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Scaling factors (Camera resolution vs Screen resolution)
-    // For Hackathon speed, we assume standard portrait scaling.
-    // In production, you calculate exact ratios.
-    final double scaleX = size.width / 480.0; // standard ML Kit width
-    final double scaleY = size.height / 640.0; // standard ML Kit height
+    // 📐 SCALING MATH (Fixes the "Invisible Box" issue)
+    final double scaleX = size.width / absoluteImageSize.height; 
+    final double scaleY = size.height / absoluteImageSize.width;
 
     for (var object in objects) {
-      // 1. Get the bounding box
+      // 1. Draw the Box
       final rect = Rect.fromLTRB(
         object.boundingBox.left * scaleX,
         object.boundingBox.top * scaleY,
@@ -203,20 +211,41 @@ class ArLightPainter extends CustomPainter {
         object.boundingBox.bottom * scaleY,
       );
 
-      // 2. Decide Color based on Label
-      // Labels: "Food", "Plant" -> Good. "Fashion good", "Home good" -> Bad.
-      bool isEco = false;
+      // 2. THE NEW "CATCH-ALL" LOGIC
+      // Default to RED (assume manufactured/carbon heavy unless proven otherwise)
+      Paint chosenPaint = badPaint; 
+      
       if (object.labels.isNotEmpty) {
         String label = object.labels.first.text.toLowerCase();
-        if (label.contains("food") || label.contains("plant")) {
-          isEco = true;
+        
+        // 🌿 GREEN: Nature, Food, Plants
+        if (label.contains("food") || 
+            label.contains("plant") || 
+            label.contains("fruit") || 
+            label.contains("vegetable")) {
+          chosenPaint = goodPaint;
+        } 
+        // 🏭 RED: Home Goods, Fashion, Electronics (The "Everything Else")
+        else if (label.contains("home") || 
+                 label.contains("fashion") || 
+                 label.contains("good") || 
+                 label.contains("electronic")) {
+          chosenPaint = badPaint;
         }
+        // 🟡 YELLOW: Places / Uncertain things
+        else if (label.contains("place")) {
+          chosenPaint = unknownPaint; 
+        }
+      } else {
+        // If the AI detects an object but has NO clue what it is, 
+        // treat it as "High Carbon" (Safe bet for manufactured objects)
+        chosenPaint = badPaint;
       }
 
-      // 3. Draw the "Light" (Glow)
-      canvas.drawRect(rect, isEco ? goodPaint : badPaint);
+      // 3. Draw the Glowing Light
+      canvas.drawRect(rect, chosenPaint);
       
-      // 4. Draw Border
+      // 4. Draw the White Border
       canvas.drawRect(rect, borderPaint);
     }
   }

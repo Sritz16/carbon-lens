@@ -897,7 +897,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   // 📸 THE CORE FUNCTION
   Future<void> _analyzeImage() async {
-    // 1. Pick Image
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
     if (photo == null) return;
 
@@ -911,13 +910,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
 
     try {
-      // 2. Prepare Image for AI
-      // NOTE: Using `await photo.readAsBytes()` works on both Web & Mobile!
+      // 1. Convert Image & Call AI
       final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
       
-      // 3. Call Gemini API
-      final cleanKey = apiKey.trim(); // Ensure your global apiKey variable is accessible
+      final cleanKey = apiKey.trim(); 
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$cleanKey');
 
       final response = await http.post(
@@ -927,20 +924,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
           "contents": [{
             "parts": [
               {
-                "text": "Identify the main object. Estimate Carbon Footprint Score (0-100). "
-                        "SCORING RULES: "
-                        "Organic/Food = 5-30. "
-                        "Plastic/Glass = 30-60. "
-                        "Metal/Electronics = 60-90. "
-                        "Vehicles/Industrial = 90-100. "
-                        "Return ONLY raw JSON: "
-                        "{'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String'}"
+                "text": "Identify object. Estimate Carbon Footprint Score (0-100). "
+                        "Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String'}"
               }, 
               {
-                "inline_data": {
-                  "mime_type": "image/jpeg", 
-                  "data": base64Image
-                }
+                "inline_data": {"mime_type": "image/jpeg", "data": base64Image}
               }
             ]
           }]
@@ -948,56 +936,49 @@ class _ScannerScreenState extends State<ScannerScreen> {
       );
 
       if (response.statusCode == 200) {
-        // 4. Parse AI Response
+        // 2. Parse Data
         final jsonResponse = jsonDecode(response.body);
         String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-        
-        // Clean up markdown if Gemini adds it
         finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
 
-        // 5. 🛠️ STABILIZATION TRICK 🛠️
-        // This ensures 'Apple' always gets the same score (within variance).
+        // 3. Stabilization Logic
         String name = parsedData['item_name'] ?? "Unknown Item";
         int baseScore = parsedData['carbon_score'] ?? 50;
-        
-        // Create a consistent offset (-5 to +5) based on the name
         int nameOffset = (name.hashCode % 11) - 5; 
         int consistentScore = (baseScore + nameOffset).clamp(0, 100);
-        
-        // Apply back to data
         parsedData['carbon_score'] = consistentScore;
+        
+        // 4. 🚀 NAVIGATE IMMEDIATELY (Don't wait for Firebase!)
+        if (mounted) {
+           setState(() => _isLoading = false);
+           Navigator.push(
+             context, 
+             MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData))
+           );
+        }
 
-        // 6. Calculate Player Points (Invert: Lower Carbon = Higher Points)
+        // 5. Save to Firebase in Background (Fire & Forget)
+        // We do NOT use 'await' here so the UI doesn't freeze.
         int earnedPoints = (100 - consistentScore).clamp(10, 100);
-
-        // 7. Save to Firebase
-        await FirebaseFirestore.instance.collection('scans').add({
+        
+        FirebaseFirestore.instance.collection('scans').add({
           ...parsedData, 
           'userId': user.uid,
           'timestamp': FieldValue.serverTimestamp()
         });
 
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        FirebaseFirestore.instance.collection('users').doc(user.uid).update({
           'totalPoints': FieldValue.increment(earnedPoints)
-        });
-
-        // 8. Go to Details
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-        
-        Navigator.push(
-          context, 
-          MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData))
-        );
+        }).catchError((e) => print("Background save error: $e")); // Log errors silently
 
       } else {
-        throw Exception("API Error: ${response.statusCode}");
+        throw Exception("API Error");
       }
     } catch (e) {
       print("Scan Error: $e");
       setState(() => _isLoading = false);
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis failed. Try again.")));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Try scanning again.")));
     }
   }
 
