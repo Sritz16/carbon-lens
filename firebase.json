@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"carbon-shadow-tracker","appId":"1:973108526550:android:df1b27f5dc47602628f877","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"carbon-shadow-tracker","configurations":{"android":"1:973108526550:android:df1b27f5dc47602628f877","web":"1:973108526550:web:d365b74eb60d209328f877","windows":"1:973108526550:web:2686f6c6c4f49a1b28f877"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "carbon-shadow-tracker",
+          "appId": "1:973108526550:android:df1b27f5dc47602628f877",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "carbon-shadow-tracker",
+          "configurations": {
+            "android": "1:973108526550:android:df1b27f5dc47602628f877",
+            "web": "1:973108526550:web:d365b74eb60d209328f877",
+            "windows": "1:973108526550:web:2686f6c6c4f49a1b28f877"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

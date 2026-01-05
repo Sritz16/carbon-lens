@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +8,7 @@ import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:confetti/confetti.dart';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 // ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw"; 
@@ -236,12 +236,13 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   
   final List<Widget> _pages = [
-    const DashboardScreen(),
-    const TravelScreen(),
-    const ScannerScreen(), 
-    const LeaderboardScreen(),
-    const ProfileScreen(),
-  ];
+  const DashboardScreen(),
+  const TravelScreen(),
+  const ScannerScreen(), 
+  const LeaderboardScreen(),
+  const ProfileScreen(),
+  const ArScreen(),
+];
 
   @override
   Widget build(BuildContext context) {
@@ -353,6 +354,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text("Dashboard")),
+      floatingActionButton: FloatingActionButton.extended(
+    onPressed: () {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const ArScreen()));
+    },
+    backgroundColor: Colors.deepPurpleAccent,
+    foregroundColor: Colors.white,
+    icon: const Icon(Icons.view_in_ar),
+    label: const Text("View AR"),
+  ),
       // 1. WRAP BODY IN A STACK
       body: Stack(
         alignment: Alignment.topCenter,
@@ -891,7 +901,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (user == null) return;
 
     try {
-      final bytes = await File(photo.path).readAsBytes();
+      final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
       final cleanKey = apiKey.trim();
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$cleanKey');
@@ -1100,7 +1110,7 @@ class ProfileScreen extends StatelessWidget {
                 
                 // Name & Email
                 Text(data['displayName'] ?? "User", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                Text(user?.email ?? "", style: const TextStyle(color: Colors.grey)),
+                Text(user.email ?? "", style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 30),
                 
                 // Score Box
@@ -1141,6 +1151,80 @@ class ProfileScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// NEW SCREEN: AR IMPACT VISUALIZER
+// ---------------------------------------------------------
+
+class ArScreen extends StatefulWidget {
+  const ArScreen({super.key});
+
+  @override
+  State<ArScreen> createState() => _ArScreenState();
+}
+
+class _ArScreenState extends State<ArScreen> {
+  // Use a public URL for a GLB 3D model. 
+  // Fun Fact: You can replace this URL with any .glb file link (e.g., a Tree).
+  // For now, we use a cool " Futuristic Earth" or "Astronaut" placeholder.
+  final String modelUrl = "assets/astronaut.glb"; 
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black, // AR looks best on dark bg
+      appBar: AppBar(
+        title: const Text("AR Guardian Mode", style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Stack(
+        children: [
+          // 1. The 3D Viewer
+          ModelViewer(
+            backgroundColor: Colors.transparent,
+            src: modelUrl, // The 3D Model
+            alt: "A 3D model of your impact",
+            ar: true, // 👈 THIS TURNS ON AR MODE!
+            autoRotate: true,
+            cameraControls: true,
+            disableZoom: false,
+          ),
+
+          // 2. Instructions Overlay
+          Positioned(
+            bottom: 40,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white24)
+              ),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Visualize Your Impact",
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "Tap the icon in the corner to place this Guardian in your room!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          )
+        ],
       ),
     );
   }
