@@ -28,14 +28,17 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.1
   flutter_lints: ^6.0.0
 
-flutter:
-  uses-material-design: true
 
-  # 👇 2 spaces indentation
-  assets:
-    # 👇 4 spaces indentation
-    - assets/model.glb
 dependency_overrides:
   google_generative_ai: ^0.4.6
+
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/app_icon.jpg" 
+  min_sdk_android: 21 # Support older Androids
+  adaptive_icon_background: "#000000" # Background color (Hex code) if your icon is transparent
+  adaptive_icon_foreground: "assets/app_icon.jpg"
