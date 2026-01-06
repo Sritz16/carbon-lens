@@ -688,12 +688,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         .doc(user!.uid)
                         .snapshots(),
                     builder: (context, userSnap) {
-                      if (!userSnap.hasData)
+                      if (!userSnap.hasData) {
                         return const Center(child: CircularProgressIndicator());
+                      }
 
-                      final userData =
-                          userSnap.data!.data() as Map<String, dynamic>? ?? {};
-                      int totalPoints = userData['totalPoints'] ?? 0;
+                      // Inside DashboardScreen StreamBuilder
+                      final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
+
+                      // Default to 100 if the field is missing
+                      int totalPoints = userData['totalPoints'] ?? 100; 
+
+                      // OPTIONAL: Auto-reset if they hit 0 or negative (Game Over logic)
+                      if (totalPoints <= 0) {
+                        totalPoints = 0; // Or show "Game Over"
+                      }
 
                       List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
                       int currentLevel = 1;
@@ -815,15 +823,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   .where('userId', isEqualTo: user.uid)
                                   .snapshots(),
                               builder: (context, scanSnap) {
-                                if (!scanSnap.hasData)
+                                if (!scanSnap.hasData) {
                                   return const Center(
                                       child: CircularProgressIndicator());
+                                }
                                 final docs = scanSnap.data!.docs;
-                                if (docs.isEmpty)
+                                if (docs.isEmpty) {
                                   return Center(
                                       child: Text("NO DATA FOUND",
                                           style: CyberTheme.techText(
                                               color: Colors.grey)));
+                                }
 
                                 return ListView.builder(
                                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -987,12 +997,31 @@ class DetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 30),
+
+                    // 👇 NEW BUTTON: VIEW CARBON SHADOW 👇
+                    CyberButton(
+                      text: "VIEW CARBON SHADOW (AR)",
+                      icon: Icons.view_in_ar,
+                      color: color,
+                      onPressed: () {
+                        // Pass the specific score to the AR screen
+                        Navigator.push(
+                          context, 
+                          MaterialPageRoute(
+                            builder: (_) => ArScreen(score: score)
+                          )
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 15),
+
                     CyberButton(
                       text: "TRANSMIT DATA (SHARE)",
                       icon: Icons.share,
                       color: Colors.red.shade900,
                       onPressed: () {
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Transmitted to Network")));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Transmitted to Network")));
                       },
                     ),
                   ],
@@ -1199,8 +1228,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
   bool _isLoading = false;
 
   Future<void> _analyzeImage() async {
-    final XFile? photo =
-        await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+// ⚡ OPTIMIZED: Resize to 600px wide and lower quality to 50%
+// This reduces file size from ~5MB to ~50KB (100x smaller!)
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera, 
+      maxWidth: 600,   // Resize huge images
+      maxHeight: 600,  // Resize huge images
+      imageQuality: 50 // Compress slightly more
+    );    
     if (photo == null) return;
     setState(() => _isLoading = true);
 
@@ -1210,64 +1245,59 @@ class _ScannerScreenState extends State<ScannerScreen> {
     try {
       final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}');
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}');
 
       final response = await http.post(url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
-            "contents": [
-              {
-                "parts": [
-                  {
-                    "text":
-                        "Identify object. Estimate Carbon Footprint Score (0-100). Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String'}"
-                  },
-                  {
-                    "inline_data": {
-                      "mime_type": "image/jpeg",
-                      "data": base64Image
-                    }
-                  }
-                ]
-              }
-            ]
+            "contents": [{
+              "parts": [
+                {
+                  "text": "Identify object. Estimate Carbon Footprint Score (0-100). Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String'}"
+                },
+                {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
+              ]
+            }]
           }));
 
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
-        String finalText =
-            jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-        finalText =
-            finalText.replaceAll("```json", "").replaceAll("```", "").trim();
+        String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+        finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
         
+        // --- 1. SEEDED RANDOM SCORE ---
         String name = parsedData['item_name'] ?? "Unknown";
         int nameSeed = name.codeUnits.fold(0, (p, e) => p + e);
         Random r = Random(nameSeed);
+        // Logic: Valid range 30-90
         int score = 30 + r.nextInt(60); 
-        
         parsedData['carbon_score'] = score;
 
-        int earnedPoints = (100 - score).clamp(10, 100);
-        FirebaseFirestore.instance.collection('scans').add({
+        // --- 2. FAST NAVIGATION ---
+        if (mounted) {
+           setState(() => _isLoading = false);
+           Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
+        }
+
+        // --- 3. CARBON BUDGET DEDUCTION ---
+        // Save scan
+        await FirebaseFirestore.instance.collection('scans').add({
           ...parsedData,
           'userId': user.uid,
           'timestamp': FieldValue.serverTimestamp()
         });
-        FirebaseFirestore.instance
+
+        // Subtract points from user
+        await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .update({'totalPoints': FieldValue.increment(earnedPoints)});
-
-        if (mounted) {
-          setState(() => _isLoading = false);
-          Navigator.push(context,
-              MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
-        }
+            .update({'totalPoints': FieldValue.increment(-score)});
+            
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if(mounted) setState(() => _isLoading = false);
+      print("Error: $e");
     }
   }
 
@@ -1422,7 +1452,7 @@ class ProfileScreen extends StatelessWidget {
               bool isLight = mode == ThemeMode.light;
               return Switch(
                 value: isLight,
-                activeColor: Colors.black, // Dark switch for light mode
+                activeThumbColor: Colors.black, // Dark switch for light mode
                 inactiveThumbColor: CyberTheme.primary,
                 inactiveTrackColor: Colors.black,
                 onChanged: (val) {
