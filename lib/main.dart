@@ -552,7 +552,7 @@ class _MainScreenState extends State<MainScreen> {
 
           // 2. The Global "View AR" Button
           Positioned(
-            bottom: 120, // ⬆️ ADJUST HEIGHT HERE (100 = low, 300 = high)
+            bottom: 140, // ⬆️ ADJUST HEIGHT HERE (100 = low, 300 = high)
             right: 20,   // Keep it on the right side
             child: FloatingActionButton(
               heroTag: "global_ar_scanner_btn", // Unique tag prevents hero errors
@@ -855,7 +855,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 }
 
                                 return ListView.builder(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  padding: const EdgeInsets.only(top: 10, left: 16, right: 16, bottom: 250),
                                   itemCount: docs.length,
                                   itemBuilder: (context, index) {
                                     final data = docs[index].data()
