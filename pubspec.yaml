@@ -1,4 +1,4 @@
-name: carbonshadowtracker
+name: carbon_shadow_tracker
 description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
@@ -9,28 +9,37 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_fonts: ^6.1.0
+  
+  # UI & Assets
   cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
   flutter_animate: ^4.5.0
   confetti: ^0.7.0
   model_viewer_plus: ^1.7.0
+
+  # Logic & AI
   google_generative_ai: ^0.4.6 
-  firebase_core: ^4.3.0
-  firebase_auth: ^6.1.3
-  cloud_firestore: ^6.1.1
-  image_picker: ^1.1.1
-  http: ^1.6.0
+  http: ^1.2.0
+  permission_handler: ^11.0.0
+
+  # Firebase
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+
+  # Camera & ML
+  image_picker: ^1.1.0
   camera: ^0.10.5
   google_mlkit_object_detection: ^0.15.0
   google_mlkit_commons: ^0.11.0
-  permission_handler: ^11.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.13.1
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0
 
+# --- CONFIGURATIONS ---
 
 dependency_overrides:
   google_generative_ai: ^0.4.6
@@ -39,6 +48,10 @@ flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
   image_path: "assets/app_icon.jpg" 
-  min_sdk_android: 21 # Support older Androids
-  adaptive_icon_background: "#000000" # Background color (Hex code) if your icon is transparent
+  min_sdk_android: 21 
+  adaptive_icon_background: "#000000"
   adaptive_icon_foreground: "assets/app_icon.jpg"
+
+# ⚠️ THE FIX: This must be at the very start of the line (NO SPACES before 'flutter:')
+flutter:
+  uses-material-design: true

@@ -135,7 +135,7 @@ class CarbonTrackerApp extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 2. NATIVE PARTICLE ENGINE & BACKGROUND (NO GRIDS)
+// 2. NATIVE PARTICLE ENGINE & BACKGROUND (CLEAN)
 // ---------------------------------------------------------
 class CyberBackground extends StatefulWidget {
   final Widget child;
@@ -208,14 +208,12 @@ class _CyberBackgroundState extends State<CyberBackground>
                 size: Size.infinite,
                 painter: ParticlePainter(
                     _particles, 
-                    isDark ? CyberTheme.primary : Colors.black
+                    isDark ? CyberTheme.primary : Colors.black45
                 ),
               );
             },
           );
         }),
-
-        // NOTE: GridPainter removed as requested
 
         // Layer 3: Content
         SafeArea(child: widget.child),
@@ -300,16 +298,15 @@ class CyberCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                // Adaptive Background: Darker in dark mode, visible white/grey in light mode
                 color: isDark 
                     ? CyberTheme.surface.withOpacity(0.4) 
-                    : Colors.white.withOpacity(0.85),
+                    : Colors.white.withOpacity(0.6),
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [
-                    isDark ? Colors.white.withOpacity(0.05) : Colors.white,
-                    isDark ? Colors.white.withOpacity(0.01) : Colors.grey.shade100
+                    isDark ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.4),
+                    isDark ? Colors.white.withOpacity(0.01) : Colors.white.withOpacity(0.1)
                   ],
                 ),
               ),
@@ -451,18 +448,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildInput(
       TextEditingController controller, String label, IconData icon,
       {bool isPass = false}) {
-    // Logic to ensure visibility in light mode login
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5), // Keep login dark even in light mode for contrast
+        color: isDark ? Colors.black.withOpacity(0.3) : Colors.grey.shade200, 
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: CyberTheme.primary.withOpacity(0.3)),
       ),
       child: TextField(
         controller: controller,
         obscureText: isPass,
-        style: CyberTheme.techText(color: Colors.white),
+        style: CyberTheme.techText(color: isDark ? Colors.white : Colors.black),
         decoration: InputDecoration(
           labelText: label.toUpperCase(),
           labelStyle: TextStyle(color: CyberTheme.primary.withOpacity(0.7)),
@@ -477,6 +475,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: CyberBackground(
         child: Center(
@@ -511,7 +511,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? "> Don't have an account? SIGN UP here"
                           : "> Has access? LOG IN here",
                       style: CyberTheme.techText(
-                          color: Colors.grey, size: 12),
+                          color: isDark ? Colors.white70 : Colors.black54, size: 12),
                     )),
               ],
             ),
@@ -536,17 +536,19 @@ class _MainScreenState extends State<MainScreen> {
     const ScannerScreen(),
     const LeaderboardScreen(),
     const ProfileScreen(),
-    const ArScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       extendBody: true, 
       body: _pages[_currentIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color?.withOpacity(0.9),
+          color: Theme.of(context).cardTheme.color?.withOpacity(0.9) ?? 
+                 (isDark ? Colors.black87 : Colors.white.withOpacity(0.9)),
           border: Border(top: BorderSide(color: CyberTheme.primary.withOpacity(0.2))),
         ),
         child: NavigationBar(
@@ -556,25 +558,25 @@ class _MainScreenState extends State<MainScreen> {
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) =>
               setState(() => _currentIndex = index),
-          destinations: const [
+          destinations: [
             NavigationDestination(
-                icon: Icon(Icons.grid_view, color: Colors.grey),
+                icon: Icon(Icons.grid_view, color: isDark ? Colors.grey : Colors.black54),
                 selectedIcon: Icon(Icons.grid_view, color: CyberTheme.primary),
                 label: "HUD"),
             NavigationDestination(
-                icon: Icon(Icons.commute, color: Colors.grey),
+                icon: Icon(Icons.commute, color: isDark ? Colors.grey : Colors.black54),
                 selectedIcon: Icon(Icons.commute, color: CyberTheme.primary),
                 label: "TRAVEL"),
             NavigationDestination(
-                icon: Icon(Icons.center_focus_weak, color: Colors.grey),
+                icon: Icon(Icons.center_focus_weak, color: isDark ? Colors.grey : Colors.black54),
                 selectedIcon: Icon(Icons.center_focus_strong, color: CyberTheme.primary),
                 label: "SCAN"),
             NavigationDestination(
-                icon: Icon(Icons.emoji_events, color: Colors.grey),
+                icon: Icon(Icons.emoji_events, color: isDark ? Colors.grey : Colors.black54),
                 selectedIcon: Icon(Icons.emoji_events, color: CyberTheme.primary),
                 label: "RANK"),
             NavigationDestination(
-                icon: Icon(Icons.fingerprint, color: Colors.grey),
+                icon: Icon(Icons.fingerprint, color: isDark ? Colors.grey : Colors.black54),
                 selectedIcon: Icon(Icons.fingerprint, color: CyberTheme.primary),
                 label: "ID"),
           ],
@@ -585,7 +587,7 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 // ---------------------------------------------------------
-// 5. DASHBOARD
+// 5. DASHBOARD (FIXED AR ICON POSITION)
 // ---------------------------------------------------------
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -667,12 +669,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeScanner()));
-        },
-        backgroundColor: CyberTheme.secondary,
-        child: const Icon(Icons.view_in_ar, color: Colors.white),
+      floatingActionButton: Padding(
+        // FIX: Lifted to 120.0 to guarantee separation from ID tab on all screens
+        padding: const EdgeInsets.only(bottom: 120.0), 
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeScanner()));
+          },
+          backgroundColor: CyberTheme.secondary,
+          child: const Icon(Icons.view_in_ar, color: Colors.white),
+        ),
       ),
       body: CyberBackground(
         child: Stack(
@@ -762,7 +768,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   const SizedBox(height: 20),
                                   Stack(
                                     children: [
-                                      Container(height: 10, color: Colors.black),
+                                      Container(height: 10, color: Colors.black12),
                                       AnimatedContainer(
                                         duration: 1000.ms,
                                         height: 10,
@@ -980,7 +986,7 @@ class DetailScreen extends StatelessWidget {
                           Divider(color: textColor?.withOpacity(0.2)),
                           _detailRow("CATEGORY", data['shadow_type'], textColor, textColor),
                           Divider(color: textColor?.withOpacity(0.2)),
-                          _detailRow("ANALYSIS", data['nudge_text'], Colors.blueGrey.shade200, textColor),
+                          _detailRow("ANALYSIS", data['nudge_text'], Colors.blueGrey, textColor),
                           Divider(color: textColor?.withOpacity(0.2)),
                           _detailRow("EQUIVALENT", data['tree_analogy'], CyberTheme.secondary, textColor),
                         ],
@@ -1025,7 +1031,7 @@ class DetailScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 7. TRAVEL SCREEN (With Light Mode Fixes)
+// 7. TRAVEL SCREEN (ICONS FIXED)
 // ---------------------------------------------------------
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key});
@@ -1076,7 +1082,7 @@ class _TravelScreenState extends State<TravelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Detect dark mode
+    // VISIBILITY FIX: Check for Dark Mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -1130,15 +1136,17 @@ class _TravelScreenState extends State<TravelScreen> {
                                     : mode == "Bicycle" 
                                       ? Icons.directions_bike
                                       : Icons.directions_walk,
-                            color: isSelected ? CyberTheme.primary : Colors.grey,
+                            // FIX: Clearly visible black icons in Light Mode
+                            color: isSelected ? CyberTheme.primary : (isDark ? Colors.grey : Colors.black87),
                             size: 30,
                           ),
                           const SizedBox(height: 8),
                           Text(mode.toUpperCase(),
                               style: TextStyle(
+                                  // FIX: Clearly visible text in Light Mode
                                   color: isSelected
                                       ? CyberTheme.primary
-                                      : Colors.grey,
+                                      : (isDark ? Colors.grey : Colors.black87),
                                   fontSize: 10,
                                   fontFamily: 'Courier'))
                         ],
@@ -1149,26 +1157,23 @@ class _TravelScreenState extends State<TravelScreen> {
               ),
               const SizedBox(height: 30),
               
-              // --- FIXED INPUT VISIBILITY ---
+              // VISIBILITY FIX: Input Container Logic
               Container(
                 decoration: BoxDecoration(
-                  // Dark Mode = Black38, Light Mode = White (so text is readable)
-                  color: isDark ? Colors.black38 : Colors.white,
+                  color: isDark ? Colors.black38 : Colors.grey.shade200, 
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: isDark ? Colors.grey.withOpacity(0.3) : Colors.black12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.3)),
                 ),
                 child: TextField(
                   controller: _distanceController,
                   keyboardType: TextInputType.number,
-                  // Text color logic
                   style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: "DISTANCE (KM)",
-                    labelStyle: TextStyle(color: isDark ? Colors.grey : Colors.grey.shade600),
+                    labelStyle: TextStyle(color: Colors.grey),
                     border: InputBorder.none,
                     prefixIcon: Icon(Icons.timeline, color: Colors.grey),
-                    contentPadding: const EdgeInsets.all(16),
+                    contentPadding: EdgeInsets.all(16),
                   ),
                 ),
               ),
@@ -1186,7 +1191,7 @@ class _TravelScreenState extends State<TravelScreen> {
 }
 
 // ---------------------------------------------------------
-// 8. SCANNER (FIXED INITIALIZE BUTTON)
+// 8. SCANNER (CYBER TRIGGER)
 // ---------------------------------------------------------
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -1273,7 +1278,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Detect dark mode
+    // VISIBILITY FIX: Check for Dark Mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -1292,38 +1297,35 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 )
               : GestureDetector(
                   onTap: _analyzeImage,
-                  // --- FIXED BUTTON STYLING ---
                   child: Container(
                     width: 250,
                     height: 250,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      // Light mode: Solid white with border. Dark mode: Translucent black.
-                      color: isDark ? Colors.black.withOpacity(0.5) : Colors.white,
-                      border: Border.all(
-                          color: isDark ? CyberTheme.primary : Colors.black, 
-                          width: 2),
+                      border: Border.all(color: CyberTheme.primary, width: 2),
                       boxShadow: [
                         BoxShadow(
-                            color: isDark ? CyberTheme.primary.withOpacity(0.3) : Colors.black12,
+                            color: CyberTheme.primary.withOpacity(0.3),
                             blurRadius: 30,
                             spreadRadius: 5)
                       ],
+                      // VISIBILITY FIX: Solid White in Light Mode, Dark Transparent in Dark Mode
+                      color: isDark ? Colors.black.withOpacity(0.5) : Colors.white,
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.add, 
-                             size: 90, 
-                             // Icon color logic
-                             color: isDark ? Colors.white : Colors.black), 
+                            size: 90, 
+                            // Icon color flips based on mode
+                            color: isDark ? Colors.white : Colors.black), 
     
                         const SizedBox(height: 10),
                         Text("INITIATE SCAN",
                             style: CyberTheme.techText(
                                 weight: FontWeight.bold, 
                                 spacing: 2,
-                                // Text color logic
+                                // Text color flips based on mode
                                 color: isDark ? CyberTheme.textMain : Colors.black))
                         ],
                       ),
@@ -1402,7 +1404,7 @@ class LeaderboardScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 10. PROFILE (MOVED TOGGLE TO APPBAR)
+// 10. PROFILE (WITH TOGGLE IN APPBAR)
 // ---------------------------------------------------------
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -1414,24 +1416,27 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("MY PROFILE"),
-        // --- MOVED TOGGLE HERE ---
+        // TOGGLE MOVED HERE -> TOP RIGHT
         actions: [
           ValueListenableBuilder<ThemeMode>(
             valueListenable: themeNotifier,
             builder: (context, mode, child) {
               bool isLight = mode == ThemeMode.light;
-              return Switch(
-                value: isLight,
-                activeColor: Colors.black, // Dark switch for light mode
-                inactiveThumbColor: CyberTheme.primary,
-                inactiveTrackColor: Colors.black,
-                onChanged: (val) {
-                  themeNotifier.value = val ? ThemeMode.light : ThemeMode.dark;
-                },
+              return Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Switch(
+                  value: isLight,
+                  activeColor: Colors.black,
+                  activeTrackColor: CyberTheme.primary,
+                  inactiveThumbColor: Colors.white,
+                  inactiveTrackColor: Colors.grey,
+                  onChanged: (val) {
+                    themeNotifier.value = val ? ThemeMode.light : ThemeMode.dark;
+                  },
+                ),
               );
             },
           ),
-          const SizedBox(width: 16),
         ],
       ),
       body: CyberBackground(
@@ -1468,9 +1473,6 @@ class ProfileScreen extends StatelessWidget {
                   Text((data['displayName'] ?? "UNKNOWN").toUpperCase(),
                       style: CyberTheme.techText(size: 24, weight: FontWeight.bold, color: textColor)),
                   Text(user.email ?? "", style: CyberTheme.techText(color: Colors.grey)),
-                  
-                  // NOTE: Toggle switch removed from here as requested
-                  
                   const SizedBox(height: 40),
 
                   Padding(
@@ -1518,7 +1520,7 @@ class _ArScreenState extends State<ArScreen> {
             color: Colors.black.withOpacity(0.6),
             colorBlendMode: BlendMode.darken,
           ),
-          // NOTE: GridPainter removed from AR view as well to be consistent
+          // GridPainter removed from here as well
           Center(
             child: Container(
               width: 280,
