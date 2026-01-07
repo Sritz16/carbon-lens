@@ -536,14 +536,40 @@ class _MainScreenState extends State<MainScreen> {
     const ScannerScreen(),
     const LeaderboardScreen(),
     const ProfileScreen(),
-    const ArScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true, 
-      body: _pages[_currentIndex],
+      extendBody: true, // Allows content to flow behind the nav bar if transparent
+      
+      // 🌟 CHANGED: Using a Stack to float the button over ALL tabs
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. The Current Tab Page
+          _pages[_currentIndex],
+
+          // 2. The Global "View AR" Button
+          Positioned(
+            bottom: 120, // ⬆️ ADJUST HEIGHT HERE (100 = low, 300 = high)
+            right: 20,   // Keep it on the right side
+            child: FloatingActionButton(
+              heroTag: "global_ar_scanner_btn", // Unique tag prevents hero errors
+              elevation: 10,
+              backgroundColor: CyberTheme.secondary,
+              onPressed: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(builder: (_) => const RealtimeScanner())
+                );
+              },
+              child: const Icon(Icons.view_in_ar, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).cardTheme.color?.withOpacity(0.9),
@@ -667,13 +693,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent, 
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeScanner()));
-        },
-        backgroundColor: CyberTheme.secondary,
-        child: const Icon(Icons.view_in_ar, color: Colors.white),
-      ),
       body: CyberBackground(
         child: Stack(
           alignment: Alignment.topCenter,

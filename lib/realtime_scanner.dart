@@ -161,7 +161,7 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
             ),
 
           Positioned(
-            bottom: 50, left: 20, right: 20,
+            bottom: 250, left: 20, right: 20,
             child: Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
@@ -172,7 +172,7 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
               ),
             ),
           ),
-          Positioned(top: 50, left: 20, child: const BackButton(color: Colors.white)),
+          const Positioned(top: 50, left: 20, child: BackButton(color: Colors.white)),
         ],
       ),
     );
@@ -192,6 +192,8 @@ class ArLightPainter extends CustomPainter {
   final Paint badPaint;  // Red
   final Paint unknownPaint; // Yellow (Analyzing)
   final Paint borderPaint;
+
+  
 
   ArLightPainter(this.objects, this.absoluteImageSize, this.goodPaint, this.badPaint, this.unknownPaint, this.borderPaint);
 
