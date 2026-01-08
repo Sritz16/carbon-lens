@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 import 'dart:math';
 import 'package:http/http.dart' as http;
@@ -491,7 +492,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     .animate(onPlay: (c) => c.repeat())
                     .rotate(duration: 10.seconds),
                 const SizedBox(height: 20),
-                Text("CARBON SHADOW TRACKER",
+                Text("CARBON LENS",
                     style: CyberTheme.techText(
                         size: 24, weight: FontWeight.bold, spacing: 4, color: CyberTheme.primary)),
                 const SizedBox(height: 40),
@@ -1075,7 +1076,7 @@ class DetailScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 7. TRAVEL SCREEN (With Light Mode Fixes)
+// 7. TRAVEL SCREEN (Fixed for iOS Keyboard Dismissal)
 // ---------------------------------------------------------
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key});
@@ -1100,6 +1101,9 @@ class _TravelScreenState extends State<TravelScreen> {
     double dist = double.tryParse(_distanceController.text) ?? 0.0;
     if (dist <= 0 || user == null) return;
 
+    // Dismiss keyboard programmatically before saving
+    FocusScope.of(context).unfocus();
+
     setState(() => _isSaving = true);
     double myEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0);
     int earnedPoints = (10 + ((dist * 0.192 - myEmission) * 20)).toInt().clamp(10, 150);
@@ -1119,122 +1123,142 @@ class _TravelScreenState extends State<TravelScreen> {
         .doc(user.uid)
         .update({'totalPoints': FieldValue.increment(earnedPoints)});
 
-    setState(() => _isSaving = false);
-    _distanceController.clear();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("TRIP LOGGED. +$earnedPoints PTS"), backgroundColor: CyberTheme.primary));
+    if (mounted) {
+      setState(() => _isSaving = false);
+      _distanceController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("TRIP LOGGED. +$earnedPoints PTS"),
+          backgroundColor: CyberTheme.primary));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Detect dark mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("MOBILITY LOG")),
-      body: CyberBackground(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("> SELECT VECTOR", style: CyberTheme.techText(color: Colors.grey)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _emissionFactors.keys.map((mode) {
-                  bool isSelected = _selectedMode == mode;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedMode = mode),
-                    child: AnimatedContainer(
-                      duration: 300.ms,
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? CyberTheme.primary.withOpacity(0.2)
-                            : Colors.transparent,
-                        border: Border.all(
-                            color: isSelected
-                                ? CyberTheme.primary
-                                : Colors.grey.withOpacity(0.3)),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: isSelected
-                            ? [
-                                BoxShadow(
-                                    color: CyberTheme.primary.withOpacity(0.2),
-                                    blurRadius: 10)
-                              ]
-                            : [],
+    // 1. Wrap entire Scaffold body in GestureDetector to allow tap-to-dismiss
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("MOBILITY LOG"),
+          // 2. IOS SPECIFIC FIX: Add a button to hide keyboard
+          leading: Platform.isIOS
+              ? IconButton(
+                  icon: const Icon(Icons.keyboard_arrow_down), // Looks like "Back/Down"
+                  tooltip: "Hide Keyboard",
+                  onPressed: () {
+                    // This command forces the keyboard to close
+                    FocusScope.of(context).unfocus();
+                  },
+                )
+              : null, // On Android, this returns null (no button), using system back instead
+        ),
+        body: CyberBackground(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("> SELECT VECTOR", style: CyberTheme.techText(color: Colors.grey)),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: _emissionFactors.keys.map((mode) {
+                    bool isSelected = _selectedMode == mode;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedMode = mode),
+                      child: AnimatedContainer(
+                        duration: 300.ms,
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? CyberTheme.primary.withOpacity(0.2)
+                              : Colors.transparent,
+                          border: Border.all(
+                              color: isSelected
+                                  ? CyberTheme.primary
+                                  : Colors.grey.withOpacity(0.3)),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                      color: CyberTheme.primary.withOpacity(0.2),
+                                      blurRadius: 10)
+                                ]
+                              : [],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              mode == "Car"
+                                  ? Icons.directions_car
+                                  : mode == "Bus"
+                                      ? Icons.directions_bus
+                                      : mode == "Train"
+                                          ? Icons.train
+                                          : mode == "Bicycle"
+                                              ? Icons.directions_bike
+                                              : Icons.directions_walk,
+                              color: isSelected ? CyberTheme.primary : Colors.grey,
+                              size: 30,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(mode.toUpperCase(),
+                                style: TextStyle(
+                                    color: isSelected
+                                        ? CyberTheme.primary
+                                        : Colors.grey,
+                                    fontSize: 10,
+                                    fontFamily: 'Courier'))
+                          ],
+                        ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                           mode == "Car"
-                                ? Icons.directions_car
-                                : mode == "Bus"
-                                  ? Icons.directions_bus
-                                  : mode == "Train"
-                                    ? Icons.train
-                                    : mode == "Bicycle" 
-                                      ? Icons.directions_bike
-                                      : Icons.directions_walk,
-                            color: isSelected ? CyberTheme.primary : Colors.grey,
-                            size: 30,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(mode.toUpperCase(),
-                              style: TextStyle(
-                                  color: isSelected
-                                      ? CyberTheme.primary
-                                      : Colors.grey,
-                                  fontSize: 10,
-                                  fontFamily: 'Courier'))
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 30),
-              
-              // --- FIXED INPUT VISIBILITY ---
-              Container(
-                decoration: BoxDecoration(
-                  // Dark Mode = Black38, Light Mode = White (so text is readable)
-                  color: isDark ? Colors.black38 : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: isDark ? Colors.grey.withOpacity(0.3) : Colors.black12),
+                    );
+                  }).toList(),
                 ),
-                child: TextField(
-                  controller: _distanceController,
-                  keyboardType: TextInputType.number,
-                  // Text color logic
-                  style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                  decoration: InputDecoration(
-                    labelText: "DISTANCE (KM)",
-                    labelStyle: TextStyle(color: isDark ? Colors.grey : Colors.grey.shade600),
-                    border: InputBorder.none,
-                    prefixIcon: const Icon(Icons.timeline, color: Colors.grey),
-                    contentPadding: const EdgeInsets.all(16),
+                const SizedBox(height: 30),
+                
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.black38 : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: isDark ? Colors.grey.withOpacity(0.3) : Colors.black12),
+                  ),
+                  child: TextField(
+                    controller: _distanceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    // 3. Ensuring the input action is "Done" helps on some devices
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    decoration: InputDecoration(
+                      labelText: "DISTANCE (KM)",
+                      labelStyle: TextStyle(
+                          color: isDark ? Colors.grey : Colors.grey.shade600),
+                      border: InputBorder.none,
+                      prefixIcon: const Icon(Icons.timeline, color: Colors.grey),
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 30),
-              CyberButton(
-                  text: "EXECUTE LOG",
-                  onPressed: _isSaving ? null : _logTravel,
-                  isLoading: _isSaving),
-            ],
+                const SizedBox(height: 30),
+                CyberButton(
+                    text: "EXECUTE LOG",
+                    onPressed: _isSaving ? null : _logTravel,
+                    isLoading: _isSaving),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 }
-
 // ---------------------------------------------------------
 // 8. SCANNER (FIXED INITIALIZE BUTTON)
 // ---------------------------------------------------------
