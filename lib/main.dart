@@ -981,7 +981,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // ---------------------------------------------------------
-// 6. DETAIL SCREEN (UPDATED: SMART SWAPS UI)
+// 6. DETAIL SCREEN (FIXED: Overflow & Buttons Removed)
 // ---------------------------------------------------------
 class DetailScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -1060,16 +1060,14 @@ class DetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 30),
 
-                    // 👇 NEW: SMART SWAPS SECTION (3 LEVELS)
+                    // 👇 FIXED: SMART SWAPS SECTION (Flexible Height)
                     Builder(
                       builder: (context) {
-                        // 1. Try to get swaps from the API response
                         Map<String, dynamic>? swaps;
                         
                         if (data['smart_swaps'] != null) {
                            swaps = Map<String, dynamic>.from(data['smart_swaps']);
                         } else {
-                           // Fallback to local engine
                            swaps = SwapEngine.getSwaps(data['item_name'] ?? ""); 
                         }
 
@@ -1081,7 +1079,10 @@ class DetailScreen extends StatelessWidget {
                             Text("> INTELLIGENT ALTERNATIVES", 
                                 style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
                             const SizedBox(height: 10),
+                            
+                            // CHANGED: Using IntrinsicHeight to make cards equal height but flexible
                             Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 _buildSwapCard("EASY", swaps['easy'] ?? "Reduce Usage", Colors.blue),
                                 const SizedBox(width: 8),
@@ -1095,32 +1096,7 @@ class DetailScreen extends StatelessWidget {
                         );
                       }
                     ),
-                    // 👆 END OF SMART SWAPS
-
-                    CyberButton(
-                      text: "VIEW CARBON SHADOW (AR)",
-                      icon: Icons.view_in_ar,
-                      color: color,
-                      onPressed: () {
-                        Navigator.push(
-                          context, 
-                          MaterialPageRoute(
-                            builder: (_) => ArScreen(score: score)
-                          )
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    CyberButton(
-                      text: "TRANSMIT DATA (SHARE)",
-                      icon: Icons.share,
-                      color: Colors.red.shade900,
-                      onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Data Transmitted to Network")));
-                      },
-                    ),
+                    // 👆 END OF SMART SWAPS (Buttons Removed)
                   ],
                 ),
               ),
@@ -1131,25 +1107,31 @@ class DetailScreen extends StatelessWidget {
     );
   }
 
-  // 👇 Helper for Swap Cards
+  // 👇 Updated Helper: Removed fixed height, added padding
   Widget _buildSwapCard(String level, String text, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(8),
-        height: 100,
+        padding: const EdgeInsets.all(12), // More padding
+        // Removed fixed height constraint
         decoration: BoxDecoration(
           border: Border.all(color: color.withOpacity(0.5)),
           borderRadius: BorderRadius.circular(8),
           color: color.withOpacity(0.1),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(level, style: CyberTheme.techText(size: 10, color: color, weight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(text, 
-                 textAlign: TextAlign.center,
-                 style: const TextStyle(fontSize: 10, color: Colors.white)),
+            const SizedBox(height: 8),
+            Text(
+                text, 
+                textAlign: TextAlign.center,
+                // Adaptive text color for Light/Dark mode readability
+                style: TextStyle(
+                  fontSize: 11, 
+                  color: color.withOpacity(0.9), // Colored text matches border
+                  height: 1.2
+                )
+            ),
           ],
         ),
       ),
