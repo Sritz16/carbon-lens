@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; 
 import 'dart:ui';
 import 'dart:math';
+import 'package:flutter/foundation.dart'; 
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -38,17 +38,14 @@ void main() async {
 // 1. THEME DEFINITIONS
 // ---------------------------------------------------------
 class CyberTheme {
-  // Dark Mode Colors
   static const Color background = Color(0xFF050505);
   static const Color surface = Color(0xFF121212);
   static const Color textMain = Color(0xFFE0E0E0);
   
-  // Light Mode Colors
   static const Color lightBackground = Color(0xFFF2F2F7);
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightTextMain = Color(0xFF1C1C1E);
 
-  // Brand Colors
   static const Color primary = Color(0xFF00FFC2); // Cyan
   static const Color secondary = Color(0xFFD500F9); // Purple
   static const Color danger = Color(0xFFFF2E2E); // Red
@@ -81,7 +78,6 @@ class CarbonTrackerApp extends StatelessWidget {
           title: 'Carbon Shadow Protocol',
           themeMode: mode, 
           
-          // LIGHT THEME
           theme: ThemeData(
             brightness: Brightness.light,
             scaffoldBackgroundColor: CyberTheme.lightBackground,
@@ -106,7 +102,6 @@ class CarbonTrackerApp extends StatelessWidget {
             ),
           ),
 
-          // DARK THEME
           darkTheme: ThemeData(
             brightness: Brightness.dark,
             scaffoldBackgroundColor: CyberTheme.background,
@@ -138,7 +133,7 @@ class CarbonTrackerApp extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 2. NATIVE PARTICLE ENGINE & BACKGROUND
+// 2. BACKGROUND
 // ---------------------------------------------------------
 class CyberBackground extends StatefulWidget {
   final Widget child;
@@ -188,7 +183,6 @@ class _CyberBackgroundState extends State<CyberBackground>
 
     return Stack(
       children: [
-        // Layer 0: Adaptive Background Gradient
         Container(
           decoration: BoxDecoration(
             gradient: RadialGradient(
@@ -200,8 +194,6 @@ class _CyberBackgroundState extends State<CyberBackground>
             ),
           ),
         ),
-
-        // Layer 1: Native Particle System
         LayoutBuilder(builder: (context, constraints) {
           _initParticles(Size(constraints.maxWidth, constraints.maxHeight));
           return AnimatedBuilder(
@@ -217,8 +209,6 @@ class _CyberBackgroundState extends State<CyberBackground>
             },
           );
         }),
-
-        // Layer 3: Content
         SafeArea(child: widget.child),
       ],
     );
@@ -262,7 +252,7 @@ class ParticlePainter extends CustomPainter {
 }
 
 // ---------------------------------------------------------
-// 3. REUSABLE UI WIDGETS
+// 3. UI WIDGETS
 // ---------------------------------------------------------
 class CyberCard extends StatelessWidget {
   final Widget child;
@@ -301,7 +291,6 @@ class CyberCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                // Adaptive Background: Darker in dark mode, visible white/grey in light mode
                 color: isDark 
                     ? CyberTheme.surface.withOpacity(0.4) 
                     : Colors.white.withOpacity(0.85),
@@ -381,7 +370,7 @@ class CyberButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 4. AUTH & SCREENS
+// 4. AUTH
 // ---------------------------------------------------------
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -415,35 +404,24 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text.trim();
     final name = _nameController.text.trim();
 
-    // ---------------------------------------------------
-    // 🛡️ STEP 1: LOCAL VALIDATION (Prevents Crushes)
-    // ---------------------------------------------------
-    
-    // 1. Check Name (Only for Sign Up)
     if (!_isLogin && name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("IDENTIFICATION REQUIRED. ENTER NAME."),
           backgroundColor: CyberTheme.danger));
       return;
     }
-
-    // 2. Check Email Format
     if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("INVALID EMAIL FORMAT. CHECK INPUT."),
           backgroundColor: CyberTheme.danger));
       return;
     }
-
-    // 3. Check Password Presence
     if (password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("PASSWORD REQUIRED."),
           backgroundColor: CyberTheme.danger));
       return;
     }
-
-    // 4. Check Password Length (Optional but good for Sign Up)
     if (!_isLogin && password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("PASSWORD TOO SHORT (MIN 6 CHARS)."),
@@ -451,22 +429,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // ---------------------------------------------------
-    // 🚀 STEP 2: EXECUTE FIREBASE AUTH
-    // ---------------------------------------------------
-    
     setState(() => _isLoading = true);
     
     try {
       if (_isLogin) {
         await FirebaseAuth.instance.signInWithEmailAndPassword(
-            email: email,
-            password: password);
+            email: email, password: password);
       } else {
         UserCredential cred = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
-                email: email,
-                password: password);
+            .createUserWithEmailAndPassword(email: email, password: password);
 
         await FirebaseFirestore.instance
             .collection('users')
@@ -480,56 +451,30 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } on FirebaseAuthException catch (e) {
-      // --- KNOWN FIREBASE ERRORS ---
       String customMessage = "ACCESS DENIED"; 
-
       switch (e.code) {
-        case 'invalid-email':
-          customMessage = "INVALID EMAIL SYNTAX."; 
-          break;
+        case 'invalid-email': customMessage = "INVALID EMAIL SYNTAX."; break;
         case 'user-not-found':
-        case 'invalid-credential': // iOS/Android often return this for wrong password
-          customMessage = "CREDENTIALS NOT FOUND. CHECK EMAIL/PASS.";
-          break;
-        case 'wrong-password':
-          customMessage = "INCORRECT PASSWORD.";
-          break;
-        case 'email-already-in-use':
-          customMessage = "ID ALREADY EXISTS. LOG IN INSTEAD.";
-          break;
-        case 'weak-password':
-          customMessage = "PASSWORD TOO WEAK. STRENGTHEN SECURITY.";
-          break;
-        case 'network-request-failed':
-          customMessage = "CONNECTION LOST. CHECK NETWORK."; 
-          break;
-        default:
-          customMessage = e.message ?? "AUTHENTICATION FAILED"; 
+        case 'invalid-credential': customMessage = "CREDENTIALS NOT FOUND."; break;
+        case 'wrong-password': customMessage = "INCORRECT PASSWORD."; break;
+        case 'email-already-in-use': customMessage = "ID ALREADY EXISTS."; break;
+        case 'weak-password': customMessage = "PASSWORD TOO WEAK."; break;
+        case 'network-request-failed': customMessage = "CONNECTION LOST."; break;
+        default: customMessage = e.message ?? "AUTHENTICATION FAILED"; 
       }
-
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(customMessage),
-          backgroundColor: CyberTheme.danger));
-          
+          content: Text(customMessage), backgroundColor: CyberTheme.danger));
     } catch (e) {
-      // --- 🛡️ CATCH-ALL FOR PLATFORM ERRORS ---
       print("Raw Error: $e"); 
-      
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("SYSTEM MALFUNCTION. PLEASE RETRY."), 
           backgroundColor: CyberTheme.danger));
-          
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ... (Rest of your _buildInput and build methods remain the same) ...
-  
-  Widget _buildInput(
-      TextEditingController controller, String label, IconData icon,
-      {bool isPass = false}) {
-    // Logic to ensure visibility in light mode login
+  Widget _buildInput(TextEditingController controller, String label, IconData icon, {bool isPass = false}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -546,8 +491,7 @@ class _LoginScreenState extends State<LoginScreen> {
           labelStyle: TextStyle(color: CyberTheme.primary.withOpacity(0.7)),
           prefixIcon: Icon(icon, color: CyberTheme.primary),
           border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
     );
@@ -564,18 +508,15 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.hexagon_outlined, size: 80, color: CyberTheme.primary)
-                    .animate(onPlay: (c) => c.repeat())
-                    .rotate(duration: 10.seconds),
+                    .animate(onPlay: (c) => c.repeat()).rotate(duration: 10.seconds),
                 const SizedBox(height: 20),
                 Text("CARBON LENS",
                     style: CyberTheme.techText(
                         size: 24, weight: FontWeight.bold, spacing: 4, color: CyberTheme.primary)),
                 const SizedBox(height: 40),
-                if (!_isLogin)
-                  _buildInput(_nameController, "AGENT NAME", Icons.badge),
+                if (!_isLogin) _buildInput(_nameController, "AGENT NAME", Icons.badge),
                 _buildInput(_emailController, "EMAIL ID", Icons.alternate_email),
-                _buildInput(_passwordController, "PASSWORD", Icons.lock_outline,
-                    isPass: true),
+                _buildInput(_passwordController, "PASSWORD", Icons.lock_outline, isPass: true),
                 const SizedBox(height: 24),
                 CyberButton(
                     text: _isLogin ? "LOG IN" : "SIGN UP",
@@ -585,11 +526,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton(
                     onPressed: () => setState(() => _isLogin = !_isLogin),
                     child: Text(
-                      _isLogin
-                          ? "> Don't have an account? SIGN UP here"
-                          : "> Has access? LOG IN here",
-                      style: CyberTheme.techText(
-                          color: Colors.grey, size: 12),
+                      _isLogin ? "> Don't have an account? SIGN UP here" : "> Has access? LOG IN here",
+                      style: CyberTheme.techText(color: Colors.grey, size: 12),
                     )),
               ],
             ),
@@ -600,6 +538,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+// ---------------------------------------------------------
+// 5. MAIN SCREEN (FIXED ICONS & NAVIGATION BAR)
+// ---------------------------------------------------------
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
   @override
@@ -618,66 +559,73 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Detect if Dark Mode
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       extendBody: true, 
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. The Current Tab Page
           _pages[_currentIndex],
-
-          // 2. The Global "View AR" Button
           Positioned(
-            bottom: 140, // ⬆️ ADJUST HEIGHT HERE
+            bottom: 140, 
             right: 20,   
             child: FloatingActionButton(
               heroTag: "global_ar_scanner_btn", 
               elevation: 10,
               backgroundColor: CyberTheme.secondary,
               onPressed: () {
-                Navigator.push(
-                  context, 
-                  MaterialPageRoute(builder: (_) => const RealtimeScanner())
-                );
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeScanner()));
               },
               child: const Icon(Icons.view_in_ar, color: Colors.white),
             ),
           ),
         ],
       ),
-
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).cardTheme.color?.withOpacity(0.9),
-          border: Border(top: BorderSide(color: CyberTheme.primary.withOpacity(0.2))),
+          // FIX: Explicit background colors for bar
+          color: isDark ? Colors.black.withOpacity(0.9) : Colors.white.withOpacity(0.9),
+          border: Border(top: BorderSide(
+              color: isDark ? CyberTheme.primary.withOpacity(0.2) : Colors.black12
+          )),
         ),
         child: NavigationBar(
           height: 70,
           backgroundColor: Colors.transparent,
-          indicatorColor: CyberTheme.primary.withOpacity(0.2),
+          // Background bubble color logic
+          indicatorColor: CyberTheme.primary.withOpacity(isDark ? 0.2 : 0.3),
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) =>
-              setState(() => _currentIndex = index),
-          destinations: const [
+          onDestinationSelected: (index) => setState(() => _currentIndex = index),
+          
+          // FIX: Removed 'const' to allow dynamic color switching
+          destinations: [
             NavigationDestination(
-                icon: Icon(Icons.grid_view, color: Colors.grey),
-                selectedIcon: Icon(Icons.grid_view, color: CyberTheme.primary),
+                icon: Icon(Icons.grid_view, color: isDark ? Colors.grey : Colors.grey.shade600),
+                selectedIcon: Icon(Icons.grid_view, 
+                    // FIX: Black icon in Light Mode to contrast with green bubble
+                    color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "HUD"),
             NavigationDestination(
-                icon: Icon(Icons.commute, color: Colors.grey),
-                selectedIcon: Icon(Icons.commute, color: CyberTheme.primary),
+                icon: Icon(Icons.commute, color: isDark ? Colors.grey : Colors.grey.shade600),
+                selectedIcon: Icon(Icons.commute, 
+                    color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "TRAVEL"),
             NavigationDestination(
-                icon: Icon(Icons.center_focus_weak, color: Colors.grey),
-                selectedIcon: Icon(Icons.center_focus_strong, color: CyberTheme.primary),
+                icon: Icon(Icons.center_focus_weak, color: isDark ? Colors.grey : Colors.grey.shade600),
+                selectedIcon: Icon(Icons.center_focus_strong, 
+                    color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "SCAN"),
             NavigationDestination(
-                icon: Icon(Icons.emoji_events, color: Colors.grey),
-                selectedIcon: Icon(Icons.emoji_events, color: CyberTheme.primary),
+                icon: Icon(Icons.emoji_events, color: isDark ? Colors.grey : Colors.grey.shade600),
+                selectedIcon: Icon(Icons.emoji_events, 
+                    color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "RANK"),
             NavigationDestination(
-                icon: Icon(Icons.fingerprint, color: Colors.grey),
-                selectedIcon: Icon(Icons.fingerprint, color: CyberTheme.primary),
+                icon: Icon(Icons.fingerprint, color: isDark ? Colors.grey : Colors.grey.shade600),
+                selectedIcon: Icon(Icons.fingerprint, 
+                    color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "ID"),
           ],
         ),
@@ -687,7 +635,7 @@ class _MainScreenState extends State<MainScreen> {
 }
 
 // ---------------------------------------------------------
-// 5. DASHBOARD (UPDATED WITH TOGGLE BUTTON)
+// 6. DASHBOARD
 // ---------------------------------------------------------
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -700,10 +648,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _confettiController =
-        ConfettiController(duration: const Duration(seconds: 2));
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
   }
-
   @override
   void dispose() {
     _confettiController.dispose();
@@ -719,15 +665,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _showLevelMap(BuildContext context, int currentPoints, int currentLevel) {
     _confettiController.play();
-    final Map<int, int> levelMap = {
-      1: 0,
-      2: 100,
-      3: 300,
-      4: 600,
-      5: 1000,
-      6: 2000
-    };
-
+    final Map<int, int> levelMap = {1: 0, 2: 100, 3: 300, 4: 600, 5: 1000, 6: 2000};
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -743,11 +681,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             int lvl = entry.key;
             int pointsReq = entry.value;
             bool isUnlocked = currentLevel >= lvl;
-
             return ListTile(
               dense: true,
-              leading: Icon(
-                  isUnlocked ? Icons.lock_open : Icons.lock,
+              leading: Icon(isUnlocked ? Icons.lock_open : Icons.lock,
                   color: isUnlocked ? CyberTheme.primary : Colors.grey),
               title: Text("LEVEL $lvl // SECTOR $lvl",
                   style: TextStyle(
@@ -778,15 +714,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppBar(
                   title: const Text("COMMAND CENTER"),
                   actions: [
-                     ValueListenableBuilder<ThemeMode>(
+                      ValueListenableBuilder<ThemeMode>(
                       valueListenable: themeNotifier,
                       builder: (context, mode, child) {
                         bool isLight = mode == ThemeMode.light;
                         return IconButton(
-                          icon: Icon(
-                            isLight ? Icons.dark_mode : Icons.light_mode,
-                            color: isLight ? Colors.black : CyberTheme.primary,
-                          ),
+                          icon: Icon(isLight ? Icons.dark_mode : Icons.light_mode,
+                            color: isLight ? Colors.black : CyberTheme.primary),
                           onPressed: () {
                             themeNotifier.value = isLight ? ThemeMode.dark : ThemeMode.light;
                           },
@@ -798,21 +732,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 Expanded(
                   child: StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user!.uid)
-                        .snapshots(),
+                    stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
                     builder: (context, userSnap) {
-                      if (!userSnap.hasData) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
+                      if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
                       final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
                       int totalPoints = userData['totalPoints'] ?? 100; 
-
-                      if (totalPoints <= 0) {
-                        totalPoints = 0; 
-                      }
+                      if (totalPoints <= 0) totalPoints = 0; 
 
                       List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
                       int currentLevel = 1;
@@ -820,17 +745,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       for (int i = 0; i < thresholds.length; i++) {
                         if (totalPoints >= thresholds[i]) {
                           currentLevel = i + 1;
-                          nextGoal = (i + 1 < thresholds.length)
-                              ? thresholds[i + 1]
-                              : thresholds.last;
+                          nextGoal = (i + 1 < thresholds.length) ? thresholds[i + 1] : thresholds.last;
                         }
                       }
                       int pointsNeeded = nextGoal - totalPoints;
                       double progress = 0.0;
                       if (currentLevel < thresholds.length) {
                         int prevGoal = thresholds[currentLevel - 1];
-                        progress =
-                            (totalPoints - prevGoal) / (nextGoal - prevGoal);
+                        progress = (totalPoints - prevGoal) / (nextGoal - prevGoal);
                       } else {
                         progress = 1.0;
                         pointsNeeded = 0;
@@ -839,8 +761,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       return Column(
                         children: [
                           GestureDetector(
-                            onTap: () =>
-                                _showLevelMap(context, totalPoints, currentLevel),
+                            onTap: () => _showLevelMap(context, totalPoints, currentLevel),
                             child: CyberCard(
                               isGlowing: true,
                               child: Column(
@@ -853,28 +774,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text("CURRENT CLEARANCE",
-                                              style: CyberTheme.techText(
-                                                  size: 10,
-                                                  color: CyberTheme.primary)),
+                                              style: CyberTheme.techText(size: 10, color: CyberTheme.primary)),
                                           Text("LEVEL $currentLevel",
-                                              style: CyberTheme.techText(
-                                                  size: 28,
-                                                  weight: FontWeight.bold,
-                                                  color: textColor)),
+                                              style: CyberTheme.techText(size: 28, weight: FontWeight.bold, color: textColor)),
                                         ],
                                       ),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 6),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                         decoration: BoxDecoration(
-                                            border: Border.all(
-                                                color: CyberTheme.primary),
-                                            borderRadius:
-                                                BorderRadius.circular(4)),
+                                            border: Border.all(color: CyberTheme.primary),
+                                            borderRadius: BorderRadius.circular(4)),
                                         child: Text("$totalPoints PTS",
-                                            style: CyberTheme.techText(
-                                                color: CyberTheme.primary,
-                                                weight: FontWeight.bold)),
+                                            style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
                                       ),
                                     ],
                                   ),
@@ -885,20 +796,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       AnimatedContainer(
                                         duration: 1000.ms,
                                         height: 10,
-                                        width: MediaQuery.of(context).size.width *
-                                            progress.clamp(0.0, 1.0) *
-                                            0.8,
+                                        width: MediaQuery.of(context).size.width * progress.clamp(0.0, 1.0) * 0.8,
                                         decoration: BoxDecoration(
-                                          gradient: const LinearGradient(colors: [
-                                            CyberTheme.primary,
-                                            CyberTheme.secondary
-                                          ]),
-                                          boxShadow: [
-                                            BoxShadow(
-                                                color: CyberTheme.primary
-                                                    .withOpacity(0.5),
-                                                blurRadius: 10)
-                                          ],
+                                          gradient: const LinearGradient(colors: [CyberTheme.primary, CyberTheme.secondary]),
+                                          boxShadow: [BoxShadow(color: CyberTheme.primary.withOpacity(0.5), blurRadius: 10)],
                                         ),
                                       ),
                                     ],
@@ -907,26 +808,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   Align(
                                       alignment: Alignment.centerRight,
                                       child: Text(
-                                          pointsNeeded > 0
-                                              ? "Level Up In $pointsNeeded PTS"
-                                              : "MAXIMUM SYNC REACHED!",
-                                          style: CyberTheme.techText(
-                                              size: 10, color: textColor))),
+                                          pointsNeeded > 0 ? "Level Up In $pointsNeeded PTS" : "MAXIMUM SYNC REACHED!",
+                                          style: CyberTheme.techText(size: 10, color: textColor))),
                                 ],
                               ),
                             ),
                           ),
-
                           Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                             child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text("> RECENT LOGS",
-                                    style: CyberTheme.techText(
-                                        size: 16, weight: FontWeight.bold, color: textColor))),
+                                    style: CyberTheme.techText(size: 16, weight: FontWeight.bold, color: textColor))),
                           ),
-
                           Expanded(
                             child: StreamBuilder<QuerySnapshot>(
                               stream: FirebaseFirestore.instance
@@ -934,70 +828,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   .where('userId', isEqualTo: user.uid)
                                   .snapshots(),
                               builder: (context, scanSnap) {
-                                if (!scanSnap.hasData) {
-                                  return const Center(
-                                      child: CircularProgressIndicator());
-                                }
+                                if (!scanSnap.hasData) return const Center(child: CircularProgressIndicator());
                                 final docs = scanSnap.data!.docs;
                                 if (docs.isEmpty) {
-                                  return Center(
-                                      child: Text("NO DATA FOUND",
-                                          style: CyberTheme.techText(
-                                              color: Colors.grey)));
+                                  return Center(child: Text("NO DATA FOUND", style: CyberTheme.techText(color: Colors.grey)));
                                 }
-
                                 return ListView.builder(
                                   padding: const EdgeInsets.only(top: 10, left: 16, right: 16, bottom: 250),
                                   itemCount: docs.length,
                                   itemBuilder: (context, index) {
-                                    final data = docs[index].data()
-                                        as Map<String, dynamic>;
+                                    final data = docs[index].data() as Map<String, dynamic>;
                                     int score = data['carbon_score'] ?? 0;
-                                    Color scoreColor = score < 30
-                                        ? CyberTheme.primary
-                                        : (score < 70
-                                            ? Colors.orange
-                                            : CyberTheme.danger);
+                                    Color scoreColor = score < 30 ? CyberTheme.primary : (score < 70 ? Colors.orange : CyberTheme.danger);
                                     Timestamp? t = data['timestamp'];
-                                    DateTime date =
-                                        t != null ? t.toDate() : DateTime.now();
+                                    DateTime date = t != null ? t.toDate() : DateTime.now();
 
                                     return CyberCard(
-                                      onTap: () => Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (_) =>
-                                                  DetailScreen(data: data))),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: data))),
                                       borderColor: scoreColor,
                                       child: Row(
                                         children: [
-                                          Icon(Icons.qr_code_2,
-                                              color: scoreColor, size: 30),
+                                          Icon(Icons.qr_code_2, color: scoreColor, size: 30),
                                           const SizedBox(width: 16),
                                           Expanded(
                                             child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(
-                                                    (data['item_name'] ??
-                                                            "UNKNOWN")
-                                                        .toUpperCase(),
-                                                    style: CyberTheme.techText(
-                                                        weight: FontWeight.bold, color: textColor)),
-                                                Text(getTimeAgo(date),
-                                                    style: CyberTheme.techText(
-                                                        size: 10,
-                                                        color: Colors.grey)),
+                                                Text((data['item_name'] ?? "UNKNOWN").toUpperCase(),
+                                                    style: CyberTheme.techText(weight: FontWeight.bold, color: textColor)),
+                                                Text(getTimeAgo(date), style: CyberTheme.techText(size: 10, color: Colors.grey)),
                                               ],
                                             ),
                                           ),
                                           Text("$score",
-                                              style: TextStyle(
-                                                  color: scoreColor,
-                                                  fontSize: 24,
-                                                  fontFamily: 'Courier',
-                                                  fontWeight: FontWeight.bold)),
+                                              style: TextStyle(color: scoreColor, fontSize: 24, fontFamily: 'Courier', fontWeight: FontWeight.bold)),
                                         ],
                                       ),
                                     ).animate().slideX();
@@ -1016,11 +880,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ConfettiWidget(
               confettiController: _confettiController,
               blastDirectionality: BlastDirectionality.explosive,
-              colors: const [
-                CyberTheme.primary,
-                CyberTheme.secondary,
-                Colors.white
-              ],
+              colors: const [CyberTheme.primary, CyberTheme.secondary, Colors.white],
             ),
           ],
         ),
@@ -1030,7 +890,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // ---------------------------------------------------------
-// 6. DETAIL SCREEN (FIXED: Overflow & Buttons Removed)
+// 7. DETAIL SCREEN
 // ---------------------------------------------------------
 class DetailScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -1039,9 +899,7 @@ class DetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     int score = data['carbon_score'] ?? 0;
-    Color color = score < 30
-        ? CyberTheme.primary
-        : (score < 70 ? Colors.orange : CyberTheme.danger);
+    Color color = score < 30 ? CyberTheme.primary : (score < 70 ? Colors.orange : CyberTheme.danger);
     final textColor = Theme.of(context).textTheme.bodyMedium?.color;
 
     return Scaffold(
@@ -1058,37 +916,19 @@ class DetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: color.withOpacity(0.5), width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                          color: color.withOpacity(0.2),
-                          blurRadius: 40,
-                          spreadRadius: 10)
-                    ],
-                    gradient: RadialGradient(colors: [
-                      color.withOpacity(0.2),
-                      Colors.transparent
-                    ]),
+                    boxShadow: [BoxShadow(color: color.withOpacity(0.2), blurRadius: 40, spreadRadius: 10)],
+                    gradient: RadialGradient(colors: [color.withOpacity(0.2), Colors.transparent]),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.hub, size: 60, color: color)
-                          .animate(onPlay: (c) => c.repeat())
-                          .rotate(duration: 10.seconds),
-                      Text("$score",
-                          style: TextStyle(
-                              fontSize: 60,
-                              fontWeight: FontWeight.bold,
-                              color: color,
-                              fontFamily: 'Courier')),
-                      Text("CARBON\nDENSITY",
-                          textAlign: TextAlign.center,
-                          style: CyberTheme.techText(size: 10, color: color)),
+                      Icon(Icons.hub, size: 60, color: color).animate(onPlay: (c) => c.repeat()).rotate(duration: 10.seconds),
+                      Text("$score", style: TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: color, fontFamily: 'Courier')),
+                      Text("CARBON\nDENSITY", textAlign: TextAlign.center, style: CyberTheme.techText(size: 10, color: color)),
                     ],
                   ),
                 ),
               ),
-
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -1108,28 +948,20 @@ class DetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 30),
-
-                    // 👇 FIXED: SMART SWAPS SECTION (Flexible Height)
                     Builder(
                       builder: (context) {
                         Map<String, dynamic>? swaps;
-                        
                         if (data['smart_swaps'] != null) {
                            swaps = Map<String, dynamic>.from(data['smart_swaps']);
                         } else {
                            swaps = SwapEngine.getSwaps(data['item_name'] ?? ""); 
                         }
-
                         if (swaps == null) return const SizedBox.shrink();
-
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("> INTELLIGENT ALTERNATIVES", 
-                                style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
+                            Text("> INTELLIGENT ALTERNATIVES", style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
                             const SizedBox(height: 10),
-                            
-                            // CHANGED: Using IntrinsicHeight to make cards equal height but flexible
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1145,7 +977,6 @@ class DetailScreen extends StatelessWidget {
                         );
                       }
                     ),
-                    // 👆 END OF SMART SWAPS (Buttons Removed)
                   ],
                 ),
               ),
@@ -1156,12 +987,10 @@ class DetailScreen extends StatelessWidget {
     );
   }
 
-  // 👇 Updated Helper: Removed fixed height, added padding
   Widget _buildSwapCard(String level, String text, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(12), // More padding
-        // Removed fixed height constraint
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           border: Border.all(color: color.withOpacity(0.5)),
           borderRadius: BorderRadius.circular(8),
@@ -1171,16 +1000,7 @@ class DetailScreen extends StatelessWidget {
           children: [
             Text(level, style: CyberTheme.techText(size: 10, color: color, weight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Text(
-                text, 
-                textAlign: TextAlign.center,
-                // Adaptive text color for Light/Dark mode readability
-                style: TextStyle(
-                  fontSize: 11, 
-                  color: color.withOpacity(0.9), // Colored text matches border
-                  height: 1.2
-                )
-            ),
+            Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: color.withOpacity(0.9), height: 1.2)),
           ],
         ),
       ),
@@ -1193,13 +1013,8 @@ class DetailScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-              width: 100,
-              child: Text(label,
-                  style: CyberTheme.techText(size: 12, color: Colors.grey))),
-          Expanded(
-              child: Text(value ?? "N/A",
-                  style: CyberTheme.techText(color: valColor ?? defaultColor))),
+          SizedBox(width: 100, child: Text(label, style: CyberTheme.techText(size: 12, color: Colors.grey))),
+          Expanded(child: Text(value ?? "N/A", style: CyberTheme.techText(color: valColor ?? defaultColor))),
         ],
       ),
     );
@@ -1207,7 +1022,7 @@ class DetailScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 7. TRAVEL SCREEN
+// 8. TRAVEL SCREEN
 // ---------------------------------------------------------
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key});
@@ -1278,7 +1093,7 @@ class _TravelScreenState extends State<TravelScreen> {
                   tooltip: "Hide Keyboard",
                   onPressed: () => FocusScope.of(context).unfocus(),
                 )
-              : null, 
+              : null,
         ),
         body: CyberBackground(
           child: SingleChildScrollView(
@@ -1300,10 +1115,12 @@ class _TravelScreenState extends State<TravelScreen> {
                         width: 90,
                         height: 90,
                         decoration: BoxDecoration(
+                          // 🌟 RESTORED NEON BOX: Always Cyan opacity (looks neon in both modes)
                           color: isSelected
                               ? CyberTheme.primary.withOpacity(0.2)
                               : Colors.transparent,
                           border: Border.all(
+                              // 🌟 RESTORED NEON BORDER
                               color: isSelected
                                   ? CyberTheme.primary
                                   : Colors.grey.withOpacity(0.3)),
@@ -1319,7 +1136,6 @@ class _TravelScreenState extends State<TravelScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // 🌟 FIXED VISIBILITY LOGIC
                             Icon(
                               mode == "Car"
                                   ? Icons.directions_car
@@ -1330,17 +1146,19 @@ class _TravelScreenState extends State<TravelScreen> {
                                           : mode == "Bicycle"
                                               ? Icons.directions_bike
                                               : Icons.directions_walk,
-                              color: isSelected 
-                                  ? (isDark ? CyberTheme.primary : Colors.black) 
-                                  : Colors.grey,
+                              // 🌟 ICON COLOR: Black in Light Mode (for visibility), Cyan in Dark Mode
+                              color: isSelected
+                                  ? (isDark ? CyberTheme.primary : Colors.black)
+                                  : (isDark ? Colors.grey : Colors.grey.shade700),
                               size: 30,
                             ),
                             const SizedBox(height: 8),
                             Text(mode.toUpperCase(),
                                 style: TextStyle(
+                                    // 🌟 TEXT COLOR: Match Icon
                                     color: isSelected
                                         ? (isDark ? CyberTheme.primary : Colors.black)
-                                        : Colors.grey,
+                                        : (isDark ? Colors.grey : Colors.grey.shade700),
                                     fontSize: 10,
                                     fontFamily: 'Courier'))
                           ],
@@ -1350,7 +1168,8 @@ class _TravelScreenState extends State<TravelScreen> {
                   }).toList(),
                 ),
                 const SizedBox(height: 30),
-                
+
+                // Input Field Container
                 Container(
                   decoration: BoxDecoration(
                     color: isDark ? Colors.black38 : Colors.white,
@@ -1387,9 +1206,8 @@ class _TravelScreenState extends State<TravelScreen> {
     );
   }
 }
-
 // ---------------------------------------------------------
-// 8. SCANNER (OPTIMIZED)
+// 9. SCANNER
 // ---------------------------------------------------------
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -1397,7 +1215,6 @@ class ScannerScreen extends StatefulWidget {
   State<ScannerScreen> createState() => _ScannerScreenState();
 }
 
-// 🚀 Global cached location for speed
 String _cachedLocation = "Unknown Location";
 
 class _ScannerScreenState extends State<ScannerScreen> {
@@ -1407,27 +1224,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Future<String> _getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
-
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return "Unknown Location";
-
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) return "Unknown Location";
     }
     if (permission == LocationPermission.deniedForever) return "Unknown Location";
-
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low 
-      );
-
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude, 
-        position.longitude
-      );
-      
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks[0];
         return "${place.locality}, ${place.country}"; 
@@ -1438,32 +1245,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return "Unknown Location";
   }
 
-  // 🚀 FETCH LOCATION ON INIT
   @override
   void initState() {
     super.initState();
     _getCurrentLocation().then((loc) {
       if(mounted) setState(() => _cachedLocation = loc);
-      print("Background Location Locked: $_cachedLocation");
     });
   }
 
   Future<void> _analyzeImage() async {
-    // ⚡ SPEED FIX 1: Aggressive Resizing
-    // Reduced from 600px to 400px, 50% to 40% quality
-    final XFile? photo = await _picker.pickImage(
-      source: ImageSource.camera, 
-      maxWidth: 400, 
-      maxHeight: 400, 
-      imageQuality: 40
-    );
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera, maxWidth: 400, maxHeight: 400, imageQuality: 40);
     if (photo == null) return;
-
     setState(() => _isLoading = true);
-    
-    // ⚡ SPEED FIX 2: Use cached location immediately
     String userLocation = _cachedLocation; 
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -1471,26 +1265,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}');
-
       final response = await http.post(url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "contents": [{
               "parts": [
                 {
-                  // 🧠 UPDATED PROMPT WITH SWAP REQUEST
-                  "text": "I am currently in $userLocation. Identify this object. "
-                          "Estimate Carbon Footprint Score (0-100). "
-                          "Provide 3 sustainable alternatives ('smart_swaps'): "
-                          "1. Easy, 2. Medium, 3. Hero. "
-                          "Return ONLY raw JSON (no markdown): {"
-                          "  'item_name': 'String', "
-                          "  'carbon_score': Int, "
-                          "  'shadow_type': 'String', "
-                          "  'nudge_text': 'String', "
-                          "  'tree_analogy': 'String', "
-                          "  'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}"
-                          "}"
+                  "text": "I am currently in $userLocation. Identify this object. Estimate Carbon Footprint Score (0-100). Provide 3 sustainable alternatives ('smart_swaps'): 1. Easy, 2. Medium, 3. Hero. Return ONLY raw JSON (no markdown): {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String', 'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
               ]
@@ -1500,44 +1281,32 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-        
-        // 🛡️ BULLETPROOF JSON CLEANING
         int startIndex = finalText.indexOf('{');
         int endIndex = finalText.lastIndexOf('}');
         if (startIndex != -1 && endIndex != -1) {
           finalText = finalText.substring(startIndex, endIndex + 1);
         }
-
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
-        
         int aiScore = parsedData['carbon_score'] ?? 50; 
         int variation = Random().nextInt(6) - 3; 
         int finalScore = (aiScore + variation).clamp(0, 100);
-
         parsedData['carbon_score'] = finalScore;
 
         if (mounted) {
            setState(() => _isLoading = false);
            Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
         }
-
         await FirebaseFirestore.instance.collection('scans').add({
           ...parsedData,
           'userId': user.uid,
           'timestamp': FieldValue.serverTimestamp()
         });
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({'totalPoints': FieldValue.increment(-finalScore)});
-            
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'totalPoints': FieldValue.increment(-finalScore)});
       } else {
         throw "API Error: ${response.statusCode}";
       }
     } catch (e) {
       if(mounted) setState(() => _isLoading = false);
-      print("Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Failed. Check Console.")));
     }
   }
@@ -1545,7 +1314,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       appBar: AppBar(title: const Text("VISUAL SCANNER")),
       body: CyberBackground(
@@ -1556,8 +1324,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   children: [
                     const CircularProgressIndicator(color: CyberTheme.primary),
                     const SizedBox(height: 20),
-                    Text("ANALYZING MATTER...",
-                        style: CyberTheme.techText(color: CyberTheme.primary))
+                    Text("ANALYZING MATTER...", style: CyberTheme.techText(color: CyberTheme.primary))
                   ],
                 )
               : GestureDetector(
@@ -1568,36 +1335,18 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isDark ? Colors.black.withOpacity(0.5) : Colors.white,
-                      border: Border.all(
-                          color: isDark ? CyberTheme.primary : Colors.black, 
-                          width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                            color: isDark ? CyberTheme.primary.withOpacity(0.3) : Colors.black12,
-                            blurRadius: 30,
-                            spreadRadius: 5)
-                      ],
+                      border: Border.all(color: isDark ? CyberTheme.primary : Colors.black, width: 2),
+                      boxShadow: [BoxShadow(color: isDark ? CyberTheme.primary.withOpacity(0.3) : Colors.black12, blurRadius: 30, spreadRadius: 5)],
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add, 
-                             size: 90, 
-                             color: isDark ? Colors.white : Colors.black), 
-    
+                        Icon(Icons.add, size: 90, color: isDark ? Colors.white : Colors.black), 
                         const SizedBox(height: 10),
-                        Text("INITIATE SCAN",
-                            style: CyberTheme.techText(
-                                weight: FontWeight.bold, 
-                                spacing: 2,
-                                color: isDark ? CyberTheme.textMain : Colors.black))
+                        Text("INITIATE SCAN", style: CyberTheme.techText(weight: FontWeight.bold, spacing: 2, color: isDark ? CyberTheme.textMain : Colors.black))
                         ],
                       ),
-                  ).animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(
-                      begin: 1.0,
-                      end: 1.05,
-                      duration: 1.5.seconds,
-                      curve: Curves.easeInOut),
+                  ).animate(onPlay: (c) => c.repeat(reverse: true)).scaleXY(begin: 1.0, end: 1.05, duration: 1.5.seconds, curve: Curves.easeInOut),
                 ),
         ),
       ),
@@ -1605,25 +1354,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 }
 
-// ---------------------------------------------------------
-// 9. LEADERBOARD
-// ---------------------------------------------------------
 class LeaderboardScreen extends StatelessWidget {
   const LeaderboardScreen({super.key});
   @override
   Widget build(BuildContext context) {
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     final textColor = Theme.of(context).textTheme.bodyMedium?.color;
-
     return Scaffold(
       appBar: AppBar(title: const Text("GLOBAL RANKING")),
       body: CyberBackground(
         child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .orderBy('totalPoints', descending: true)
-              .limit(50)
-              .snapshots(),
+          stream: FirebaseFirestore.instance.collection('users').orderBy('totalPoints', descending: true).limit(50).snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
             final docs = snapshot.data!.docs;
@@ -1638,23 +1379,10 @@ class LeaderboardScreen extends StatelessWidget {
                   isGlowing: isMe,
                   child: Row(
                     children: [
-                      Text("#${index + 1}",
-                          style: TextStyle(
-                              color: index < 3
-                                  ? CyberTheme.secondary
-                                  : Colors.grey,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'Courier')),
+                      Text("#${index + 1}", style: TextStyle(color: index < 3 ? CyberTheme.secondary : Colors.grey, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Courier')),
                       const SizedBox(width: 16),
-                      Expanded(
-                          child: Text(
-                              (data['displayName'] ?? "ANON").toUpperCase(),
-                              style: CyberTheme.techText(color: textColor))),
-                      Text("${data['totalPoints']} PTS",
-                          style: CyberTheme.techText(
-                              color: CyberTheme.primary,
-                              weight: FontWeight.bold)),
+                      Expanded(child: Text((data['displayName'] ?? "ANON").toUpperCase(), style: CyberTheme.techText(color: textColor))),
+                      Text("${data['totalPoints']} PTS", style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
                     ],
                   ),
                 );
@@ -1667,29 +1395,19 @@ class LeaderboardScreen extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------
-// 10. PROFILE (REMOVED TOGGLE BUTTON)
-// ---------------------------------------------------------
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final textColor = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white;
-    // 🌟 ADDED: Detect theme brightness for explicit checks
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("MY PROFILE"),
-        // 🌟 REMOVED ACTIONS (Toggle) from here
-      ),
+      appBar: AppBar(title: const Text("MY PROFILE")),
       body: CyberBackground(
         child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(user!.uid)
-              .snapshots(),
+          stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
           builder: (context, snapshot) {
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
             final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
@@ -1699,42 +1417,16 @@ class ProfileScreen extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: CyberTheme.primary, width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                              color: CyberTheme.primary.withOpacity(0.4),
-                              blurRadius: 20)
-                        ]),
-                    child: CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.black,
-                        child: Text(data['displayName']?[0] ?? "U",
-                            style: const TextStyle(
-                                fontSize: 40, color: Colors.white))),
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: CyberTheme.primary, width: 2), boxShadow: [BoxShadow(color: CyberTheme.primary.withOpacity(0.4), blurRadius: 20)]),
+                    child: CircleAvatar(radius: 50, backgroundColor: Colors.black, child: Text(data['displayName']?[0] ?? "U", style: const TextStyle(fontSize: 40, color: Colors.white))),
                   ),
                   const SizedBox(height: 24),
-                  Text((data['displayName'] ?? "UNKNOWN").toUpperCase(),
-                      style: CyberTheme.techText(size: 24, weight: FontWeight.bold, color: textColor)),
-                  
-                  // 🌟 FIXED: Use BLACK text in Light Mode, GREY in Dark Mode
-                  Text(
-                    user.email ?? "", 
-                    style: CyberTheme.techText(
-                      color: isDark ? Colors.grey : Colors.black87
-                    )
-                  ),
-                  
+                  Text((data['displayName'] ?? "UNKNOWN").toUpperCase(), style: CyberTheme.techText(size: 24, weight: FontWeight.bold, color: textColor)),
+                  Text(user.email ?? "", style: CyberTheme.techText(color: isDark ? Colors.grey : Colors.black87)),
                   const SizedBox(height: 40),
-
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: CyberButton(
-                      text: "DISCONNECT (LOGOUT)",
-                      color: Colors.red.shade900,
-                      onPressed: () => FirebaseAuth.instance.signOut(),
-                    ),
+                    child: CyberButton(text: "DISCONNECT (LOGOUT)", color: Colors.red.shade900, onPressed: () => FirebaseAuth.instance.signOut()),
                   ),
                 ],
               ),
@@ -1746,9 +1438,6 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------
-// 11. AR SCREEN
-// ---------------------------------------------------------
 class ArScreen extends StatefulWidget {
   final int score;
   const ArScreen({super.key, this.score = 50});
@@ -1761,38 +1450,19 @@ class _ArScreenState extends State<ArScreen> {
   Widget build(BuildContext context) {
     bool isDanger = widget.score > 60;
     Color hudColor = isDanger ? CyberTheme.danger : CyberTheme.primary;
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.network(
-            "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?q=80&w=1000&auto=format&fit=crop",
-            fit: BoxFit.cover,
-            color: Colors.black.withOpacity(0.6),
-            colorBlendMode: BlendMode.darken,
-          ),
+          Image.network("https://images.unsplash.com/photo-1518546305927-5a555bb7020d?q=80&w=1000&auto=format&fit=crop", fit: BoxFit.cover, color: Colors.black.withOpacity(0.6), colorBlendMode: BlendMode.darken),
           Center(
             child: Container(
-              width: 280,
-              height: 280,
-              decoration: BoxDecoration(
-                border: Border.all(color: hudColor.withOpacity(0.5), width: 1),
-                borderRadius: BorderRadius.circular(140),
-              ),
+              width: 280, height: 280,
+              decoration: BoxDecoration(border: Border.all(color: hudColor.withOpacity(0.5), width: 1), borderRadius: BorderRadius.circular(140)),
               child: Stack(
                 children: [
-                  Center(
-                    child: Container(
-                      width: 260,
-                      height: 260,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: hudColor.withOpacity(0.3), width: 5),
-                        shape: BoxShape.circle,
-                      ),
-                    ).animate(onPlay: (c) => c.repeat()).rotate(duration: 5.seconds),
-                  ),
+                  Center(child: Container(width: 260, height: 260, decoration: BoxDecoration(border: Border.all(color: hudColor.withOpacity(0.3), width: 5), shape: BoxShape.circle)).animate(onPlay: (c) => c.repeat()).rotate(duration: 5.seconds)),
                   Center(child: Icon(Icons.add, color: hudColor, size: 40)),
                 ],
               ),
@@ -1800,32 +1470,13 @@ class _ArScreenState extends State<ArScreen> {
           ),
           Positioned(
             top: 60, left: 20, right: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const BackButton(color: Colors.white),
-                Text("LIVE FEED // ANALYZING", style: CyberTheme.techText(color: hudColor, spacing: 2)),
-                Icon(Icons.battery_charging_full, color: hudColor),
-              ],
-            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const BackButton(color: Colors.white), Text("LIVE FEED // ANALYZING", style: CyberTheme.techText(color: hudColor, spacing: 2)), Icon(Icons.battery_charging_full, color: hudColor)]),
           ),
           Positioned(
             bottom: 40, left: 20, right: 20,
             child: CyberCard(
               borderColor: hudColor,
-              child: Column(
-                children: [
-                  Text(isDanger ? "WARNING: HIGH CARBON" : "STATUS: OPTIMAL",
-                      style: CyberTheme.techText(color: hudColor, weight: FontWeight.bold, size: 18)),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(
-                    value: widget.score / 100,
-                    backgroundColor: Colors.black,
-                    valueColor: AlwaysStoppedAnimation(hudColor),
-                    minHeight: 4,
-                  ),
-                ],
-              ),
+              child: Column(children: [Text(isDanger ? "WARNING: HIGH CARBON" : "STATUS: OPTIMAL", style: CyberTheme.techText(color: hudColor, weight: FontWeight.bold, size: 18)), const SizedBox(height: 10), LinearProgressIndicator(value: widget.score / 100, backgroundColor: Colors.black, valueColor: AlwaysStoppedAnimation(hudColor), minHeight: 4)]),
             ),
           ),
         ],
@@ -1834,41 +1485,18 @@ class _ArScreenState extends State<ArScreen> {
   }
 }
 
-// ---------------------------------------------------------
-// 12. FALLBACK SWAP ENGINE
-// ---------------------------------------------------------
 class SwapEngine {
   static Map<String, String>? getSwaps(String itemName) {
     String name = itemName.toLowerCase();
-    
-    // 1. High Carbon Specifics
     if (name.contains('burger') || name.contains('meat') || name.contains('beef')) {
-      return {
-        'easy': 'Chicken Burger',
-        'medium': 'Veg Patty',
-        'hero': 'Lentil Burger'
-      };
+      return {'easy': 'Chicken Burger', 'medium': 'Veg Patty', 'hero': 'Lentil Burger'};
     }
     if (name.contains('car') || name.contains('vehicle')) {
-      return {
-        'easy': 'Carpooling',
-        'medium': 'Public Bus',
-        'hero': 'Bicycle'
-      };
+      return {'easy': 'Carpooling', 'medium': 'Public Bus', 'hero': 'Bicycle'};
     }
     if (name.contains('plastic') || name.contains('bottle')) {
-      return {
-        'easy': 'Recycle Bin',
-        'medium': 'Reuse Bottle',
-        'hero': 'Metal Flask'
-      };
+      return {'easy': 'Recycle Bin', 'medium': 'Reuse Bottle', 'hero': 'Metal Flask'};
     }
-
-    // 2. Generic Fallback (Ensures UI always shows)
-    return {
-      'easy': 'Extend Use',
-      'medium': 'Buy Used',
-      'hero': 'Refuse Item'
-    };
+    return {'easy': 'Extend Use', 'medium': 'Buy Used', 'hero': 'Refuse Item'};
   }
 }
