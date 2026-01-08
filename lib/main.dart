@@ -441,14 +441,12 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } on FirebaseAuthException catch (e) {
-      // ---------------------------------------------------
-      // 🌟 CUSTOM ERROR MESSAGE LOGIC STARTS HERE
-      // ---------------------------------------------------
-      String customMessage = "ACCESS DENIED"; // Default fallback
+      // --- KNOWN FIREBASE ERRORS ---
+      String customMessage = "ACCESS DENIED"; 
 
       switch (e.code) {
         case 'invalid-email':
-          customMessage = "INVALID EMAIL SYNTAX. CHECK YOUR INPUT."; // <--- CHANGE THIS TEXT
+          customMessage = "INVALID EMAIL SYNTAX. CHECK YOUR INPUT."; 
           break;
         case 'user-not-found':
           customMessage = "EMAIL NOT FOUND. PLEASE SIGN UP.";
@@ -462,15 +460,26 @@ class _LoginScreenState extends State<LoginScreen> {
         case 'weak-password':
           customMessage = "PASSWORD TOO WEAK. STRENGTHEN SECURITY.";
           break;
+        case 'network-request-failed':
+          customMessage = "CONNECTION LOST. CHECK NETWORK."; // Handles offline errors
+          break;
         default:
-          customMessage = e.message ?? "SYSTEM ERROR"; // Fallback to Firebase message
+          customMessage = e.message ?? "AUTHENTICATION FAILED"; 
       }
 
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(customMessage),
           backgroundColor: CyberTheme.danger));
-      // ---------------------------------------------------
+          
+    } catch (e) {
+      // --- 🛡️ CATCH-ALL FOR UGLY PLATFORM ERRORS ---
+      // This catches the 'dev.flutter.pigeon...' error you saw
+      print("Raw Error: $e"); // Keep raw error in console for debugging
       
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("SYSTEM MALFUNCTION. PLEASE RETRY."), // Clean user message
+          backgroundColor: CyberTheme.danger));
+          
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
