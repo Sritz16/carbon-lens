@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart'; 
 import 'dart:ui';
 import 'dart:math';
 import 'package:http/http.dart' as http;
@@ -489,7 +490,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     .animate(onPlay: (c) => c.repeat())
                     .rotate(duration: 10.seconds),
                 const SizedBox(height: 20),
-                Text("CARBON SHADOW TRACKER",
+                Text("CARBON LENS",
                     style: CyberTheme.techText(
                         size: 24, weight: FontWeight.bold, spacing: 4, color: CyberTheme.primary)),
                 const SizedBox(height: 40),
@@ -1156,7 +1157,7 @@ class DetailScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 7. TRAVEL SCREEN
+// 7. TRAVEL SCREEN (With Light Mode Fixes)
 // ---------------------------------------------------------
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key});
@@ -1181,6 +1182,9 @@ class _TravelScreenState extends State<TravelScreen> {
     double dist = double.tryParse(_distanceController.text) ?? 0.0;
     if (dist <= 0 || user == null) return;
 
+    // Dismiss keyboard programmatically before saving
+    FocusScope.of(context).unfocus();
+
     setState(() => _isSaving = true);
     double myEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0);
     int earnedPoints = (10 + ((dist * 0.192 - myEmission) * 20)).toInt().clamp(10, 150);
@@ -1200,14 +1204,17 @@ class _TravelScreenState extends State<TravelScreen> {
         .doc(user.uid)
         .update({'totalPoints': FieldValue.increment(earnedPoints)});
 
-    setState(() => _isSaving = false);
-    _distanceController.clear();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("TRIP LOGGED. +$earnedPoints PTS"), backgroundColor: CyberTheme.primary));
+    if (mounted) {
+      setState(() => _isSaving = false);
+      _distanceController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("TRIP LOGGED. +$earnedPoints PTS"),
+          backgroundColor: CyberTheme.primary));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Detect dark mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -1280,6 +1287,7 @@ class _TravelScreenState extends State<TravelScreen> {
               ),
               const SizedBox(height: 30),
               
+              // --- FIXED INPUT VISIBILITY ---
               Container(
                 decoration: BoxDecoration(
                   // Dark Mode = Black38, Light Mode = White (so text is readable)
@@ -1314,7 +1322,6 @@ class _TravelScreenState extends State<TravelScreen> {
     );
   }
 }
-
 // ---------------------------------------------------------
 // 8. SCANNER (OPTIMIZED)
 // ---------------------------------------------------------
