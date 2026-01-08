@@ -411,31 +411,70 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLogin = true;
 
   Future<void> _submit() async {
-    if (!_isLogin && _nameController.text.trim().isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final name = _nameController.text.trim();
+
+    // ---------------------------------------------------
+    // 🛡️ STEP 1: LOCAL VALIDATION (Prevents Crushes)
+    // ---------------------------------------------------
+    
+    // 1. Check Name (Only for Sign Up)
+    if (!_isLogin && name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("IDENTIFICATION REQUIRED. ENTER NAME.")));
+          content: Text("IDENTIFICATION REQUIRED. ENTER NAME."),
+          backgroundColor: CyberTheme.danger));
       return;
     }
 
+    // 2. Check Email Format
+    if (email.isEmpty || !email.contains('@') || !email.contains('.')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("INVALID EMAIL FORMAT. CHECK INPUT."),
+          backgroundColor: CyberTheme.danger));
+      return;
+    }
+
+    // 3. Check Password Presence
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("PASSWORD REQUIRED."),
+          backgroundColor: CyberTheme.danger));
+      return;
+    }
+
+    // 4. Check Password Length (Optional but good for Sign Up)
+    if (!_isLogin && password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("PASSWORD TOO SHORT (MIN 6 CHARS)."),
+          backgroundColor: CyberTheme.danger));
+      return;
+    }
+
+    // ---------------------------------------------------
+    // 🚀 STEP 2: EXECUTE FIREBASE AUTH
+    // ---------------------------------------------------
+    
     setState(() => _isLoading = true);
+    
     try {
       if (_isLogin) {
         await FirebaseAuth.instance.signInWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim());
+            email: email,
+            password: password);
       } else {
         UserCredential cred = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(
-                email: _emailController.text.trim(),
-                password: _passwordController.text.trim());
+                email: email,
+                password: password);
 
         await FirebaseFirestore.instance
             .collection('users')
             .doc(cred.user!.uid)
             .set({
           'uid': cred.user!.uid,
-          'email': _emailController.text.trim(),
-          'displayName': _nameController.text.trim(),
+          'email': email,
+          'displayName': name,
           'totalPoints': 0,
           'joinedAt': FieldValue.serverTimestamp(),
         });
@@ -446,10 +485,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       switch (e.code) {
         case 'invalid-email':
-          customMessage = "INVALID EMAIL SYNTAX. CHECK YOUR INPUT."; 
+          customMessage = "INVALID EMAIL SYNTAX."; 
           break;
         case 'user-not-found':
-          customMessage = "EMAIL NOT FOUND. PLEASE SIGN UP.";
+        case 'invalid-credential': // iOS/Android often return this for wrong password
+          customMessage = "CREDENTIALS NOT FOUND. CHECK EMAIL/PASS.";
           break;
         case 'wrong-password':
           customMessage = "INCORRECT PASSWORD.";
@@ -461,7 +501,7 @@ class _LoginScreenState extends State<LoginScreen> {
           customMessage = "PASSWORD TOO WEAK. STRENGTHEN SECURITY.";
           break;
         case 'network-request-failed':
-          customMessage = "CONNECTION LOST. CHECK NETWORK."; // Handles offline errors
+          customMessage = "CONNECTION LOST. CHECK NETWORK."; 
           break;
         default:
           customMessage = e.message ?? "AUTHENTICATION FAILED"; 
@@ -472,12 +512,11 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: CyberTheme.danger));
           
     } catch (e) {
-      // --- 🛡️ CATCH-ALL FOR UGLY PLATFORM ERRORS ---
-      // This catches the 'dev.flutter.pigeon...' error you saw
-      print("Raw Error: $e"); // Keep raw error in console for debugging
+      // --- 🛡️ CATCH-ALL FOR PLATFORM ERRORS ---
+      print("Raw Error: $e"); 
       
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("SYSTEM MALFUNCTION. PLEASE RETRY."), // Clean user message
+          content: Text("SYSTEM MALFUNCTION. PLEASE RETRY."), 
           backgroundColor: CyberTheme.danger));
           
     } finally {
@@ -485,7 +524,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-
+  // ... (Rest of your _buildInput and build methods remain the same) ...
+  
   Widget _buildInput(
       TextEditingController controller, String label, IconData icon,
       {bool isPass = false}) {
@@ -493,7 +533,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5), // Keep login dark even in light mode for contrast
+        color: Colors.black.withOpacity(0.5), 
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: CyberTheme.primary.withOpacity(0.3)),
       ),
