@@ -1051,10 +1051,22 @@ class DetailScreen extends StatelessWidget {
                     const SizedBox(height: 30),
 
                     // 👇 SMART SWAPS SECTION
+                    // 👇 NEW: API-POWERED SMART SWAPS
                     Builder(
                       builder: (context) {
-                        final swaps = SwapEngine.getSwaps(data['item_name'] ?? "");
-                        if (swaps == null) return const SizedBox.shrink(); // Hide if no swaps
+                        // 1. Try to get swaps from the API response
+                        Map<String, dynamic>? swaps;
+                        
+                        if (data['smart_swaps'] != null) {
+                           // Firestore stores nested maps as Map<String, dynamic>
+                           swaps = Map<String, dynamic>.from(data['smart_swaps']);
+                        } else {
+                           // Fallback for old scans or failures: Use the old SwapEngine
+                           // (You can keep the SwapEngine class at the bottom as a backup)
+                           swaps = SwapEngine.getSwaps(data['item_name'] ?? ""); 
+                        }
+
+                        if (swaps == null) return const SizedBox.shrink();
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1064,11 +1076,11 @@ class DetailScreen extends StatelessWidget {
                             const SizedBox(height: 10),
                             Row(
                               children: [
-                                _buildSwapCard("EASY", swaps['easy']!, Colors.blue),
+                                _buildSwapCard("EASY", swaps['easy'] ?? "Reduce Usage", Colors.blue),
                                 const SizedBox(width: 8),
-                                _buildSwapCard("MED", swaps['medium']!, Colors.orange),
+                                _buildSwapCard("MED", swaps['medium'] ?? "Buy Used", Colors.orange),
                                 const SizedBox(width: 8),
-                                _buildSwapCard("HERO", swaps['hero']!, Colors.green),
+                                _buildSwapCard("HERO", swaps['hero'] ?? "Refuse Item", Colors.green),
                               ],
                             ),
                             const SizedBox(height: 30),
@@ -1287,7 +1299,6 @@ class _TravelScreenState extends State<TravelScreen> {
               ),
               const SizedBox(height: 30),
               
-              // --- FIXED INPUT VISIBILITY ---
               Container(
                 decoration: BoxDecoration(
                   // Dark Mode = Black38, Light Mode = White (so text is readable)
@@ -1377,7 +1388,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Future<void> _analyzeImage() async {
-    // ⚡ SPEED FIX 1: Aggressive Resizing
     final XFile? photo = await _picker.pickImage(
       source: ImageSource.camera, 
       maxWidth: 400,   
@@ -1387,8 +1397,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (photo == null) return;
 
     setState(() => _isLoading = true);
-    
-    // ⚡ SPEED FIX 2: Use Cached Location
     String userLocation = _cachedLocation; 
 
     try {
@@ -1403,7 +1411,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
               "parts": [
                 {
                   "text": "I am in $userLocation. Identify object. Estimate Carbon Footprint Score (0-100). "
-                          "Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String'}"
+                          "Provide 3 sustainable alternatives ('smart_swaps') specific to this item: "
+                          "1. Easy (Simple swap/habit), 2. Medium (Moderate effort), 3. Hero (Maximum impact). "
+                          "Return ONLY raw JSON (no markdown, no backticks): {"
+                          "  'item_name': 'String', "
+                          "  'carbon_score': Int, "
+                          "  'shadow_type': 'String', "
+                          "  'nudge_text': 'String', "
+                          "  'tree_analogy': 'String', "
+                          "  'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}"
+                          "}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
               ]
@@ -1413,7 +1430,20 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-        finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
+        
+        print("🔍 RAW AI RESPONSE: $finalText"); // Debug print
+
+        // 🛡️ BULLETPROOF JSON CLEANER
+        // This finds the first '{' and the last '}' to extract ONLY the JSON object
+        int startIndex = finalText.indexOf('{');
+        int endIndex = finalText.lastIndexOf('}');
+        
+        if (startIndex != -1 && endIndex != -1) {
+          finalText = finalText.substring(startIndex, endIndex + 1);
+        } else {
+          throw "Invalid JSON structure received";
+        }
+
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
         
         // Trust the AI Score (with tiny variation)
@@ -1439,12 +1469,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
         }
             
       } else {
+        print("❌ API ERROR: ${response.body}");
         throw "API Error: ${response.statusCode}";
       }
     } catch (e) {
       if(mounted) setState(() => _isLoading = false);
-      print("Error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Failed. Try Again.")));
+      print("❌ CRITICAL ERROR: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text("Analysis Failed: Check Debug Console"), 
+        backgroundColor: Colors.red
+      ));
     }
   }
 
@@ -1758,11 +1792,12 @@ class _ArScreenState extends State<ArScreen> {
   }
 }
 
-// 💡 SMART SWAP ENGINE
+// 💡 SMART SWAP ENGINE (UPDATED: ALWAYS ACTIVE)
 class SwapEngine {
   static Map<String, String>? getSwaps(String itemName) {
     String name = itemName.toLowerCase();
     
+    // 1. Specific High-Carbon Items
     if (name.contains('burger') || name.contains('meat') || name.contains('beef')) {
       return {
         'easy': 'Chicken Burger (-30%)',
@@ -1777,14 +1812,20 @@ class SwapEngine {
         'hero': 'Bicycle / Walk (-100%)'
       };
     }
-    if (name.contains('plastic') || name.contains('bottle')) {
+    if (name.contains('plastic') || name.contains('bottle') || name.contains('container')) {
       return {
         'easy': 'Recycle Bin (Neutral)',
         'medium': 'Reuse Bottle (-50%)',
         'hero': 'Metal Flask (Zero Waste)'
       };
     }
-    // Return null if no swaps are needed (for good items)
-    return null;
+
+    // 2. 👇 NEW: FALLBACK FOR EVERYTHING ELSE
+    // This ensures the card SHOWS UP even for random items like "Laptop" or "Shoe"
+    return {
+      'easy': 'Extend Lifespan',
+      'medium': 'Buy Second Hand',
+      'hero': 'Refuse / Repair'
+    };
   }
 }
