@@ -51,10 +51,10 @@ dependency_overrides:
 flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
-  image_path: "assets/app_icon.jpg" 
+  image_path: "assets/Untitled design.png" 
   min_sdk_android: 21 
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/app_icon.jpg"
+  adaptive_icon_foreground: "assets/Untitled design.png"
 
 # ⚠️ THE FIX: This must be at the very start of the line (NO SPACES before 'flutter:')
 flutter:

@@ -1,1 +1,55 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"carbon-shadow-tracker-db297","appId":"1:312487021634:android:c1fb41ae10ebc597a831db","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"carbon-shadow-tracker-db297","configurations":{"android":"1:312487021634:android:c1fb41ae10ebc597a831db","ios":"1:312487021634:ios:ddd7fdb3d1b4f9c4a831db","macos":"1:312487021634:ios:ddd7fdb3d1b4f9c4a831db","web":"1:312487021634:web:05acf4582305ee88a831db","windows":"1:312487021634:web:15a85c2de499147ba831db"}}},"ios":{"default":{"projectId":"carbon-shadow-tracker-db297","appId":"1:312487021634:ios:ddd7fdb3d1b4f9c4a831db","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"carbon-shadow-tracker-db297","appId":"1:312487021634:ios:ddd7fdb3d1b4f9c4a831db","uploadDebugSymbols":false,"fileOutput":"macos/Runner/GoogleService-Info.plist"}}}},"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "carbon-shadow-tracker-db297",
+          "appId": "1:312487021634:android:c1fb41ae10ebc597a831db",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "carbon-shadow-tracker-db297",
+          "configurations": {
+            "android": "1:312487021634:android:c1fb41ae10ebc597a831db",
+            "ios": "1:312487021634:ios:ddd7fdb3d1b4f9c4a831db",
+            "macos": "1:312487021634:ios:ddd7fdb3d1b4f9c4a831db",
+            "web": "1:312487021634:web:05acf4582305ee88a831db",
+            "windows": "1:312487021634:web:15a85c2de499147ba831db"
+          }
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "carbon-shadow-tracker-db297",
+          "appId": "1:312487021634:ios:ddd7fdb3d1b4f9c4a831db",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "carbon-shadow-tracker-db297",
+          "appId": "1:312487021634:ios:ddd7fdb3d1b4f9c4a831db",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

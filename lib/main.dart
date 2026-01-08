@@ -645,11 +645,13 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late ConfettiController _confettiController;
+  
   @override
   void initState() {
     super.initState();
     _confettiController = ConfettiController(duration: const Duration(seconds: 2));
   }
+
   @override
   void dispose() {
     _confettiController.dispose();
@@ -665,7 +667,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _showLevelMap(BuildContext context, int currentPoints, int currentLevel) {
     _confettiController.play();
-    final Map<int, int> levelMap = {1: 0, 2: 100, 3: 300, 4: 600, 5: 1000, 6: 2000};
+    final Map<int, int> levelMap = {
+      1: 0,
+      2: 100,
+      3: 300,
+      4: 600,
+      5: 1000,
+      6: 2000
+    };
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -681,9 +691,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             int lvl = entry.key;
             int pointsReq = entry.value;
             bool isUnlocked = currentLevel >= lvl;
+
             return ListTile(
               dense: true,
-              leading: Icon(isUnlocked ? Icons.lock_open : Icons.lock,
+              leading: Icon(
+                  isUnlocked ? Icons.lock_open : Icons.lock,
                   color: isUnlocked ? CyberTheme.primary : Colors.grey),
               title: Text("LEVEL $lvl // SECTOR $lvl",
                   style: TextStyle(
@@ -714,13 +726,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppBar(
                   title: const Text("COMMAND CENTER"),
                   actions: [
-                      ValueListenableBuilder<ThemeMode>(
+                     ValueListenableBuilder<ThemeMode>(
                       valueListenable: themeNotifier,
                       builder: (context, mode, child) {
                         bool isLight = mode == ThemeMode.light;
                         return IconButton(
-                          icon: Icon(isLight ? Icons.dark_mode : Icons.light_mode,
-                            color: isLight ? Colors.black : CyberTheme.primary),
+                          icon: Icon(
+                            isLight ? Icons.dark_mode : Icons.light_mode,
+                            color: isLight ? Colors.black : CyberTheme.primary,
+                          ),
                           onPressed: () {
                             themeNotifier.value = isLight ? ThemeMode.dark : ThemeMode.light;
                           },
@@ -732,12 +746,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 Expanded(
                   child: StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user!.uid)
+                        .snapshots(),
                     builder: (context, userSnap) {
-                      if (!userSnap.hasData) return const Center(child: CircularProgressIndicator());
+                      if (!userSnap.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
                       final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
                       int totalPoints = userData['totalPoints'] ?? 100; 
-                      if (totalPoints <= 0) totalPoints = 0; 
+
+                      // LOCKDOWN LOGIC
+                      bool isLocked = totalPoints < 20;
+
+                      if (totalPoints <= 0) {
+                        totalPoints = 0; 
+                      }
 
                       List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
                       int currentLevel = 1;
@@ -745,7 +771,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       for (int i = 0; i < thresholds.length; i++) {
                         if (totalPoints >= thresholds[i]) {
                           currentLevel = i + 1;
-                          nextGoal = (i + 1 < thresholds.length) ? thresholds[i + 1] : thresholds.last;
+                          nextGoal = (i + 1 < thresholds.length)
+                              ? thresholds[i + 1]
+                              : thresholds.last;
                         }
                       }
                       int pointsNeeded = nextGoal - totalPoints;
@@ -760,9 +788,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       return Column(
                         children: [
+                          // ------------------------------------------
+                          // 1. MAIN CARD (Clearance)
+                          // ------------------------------------------
                           GestureDetector(
                             onTap: () => _showLevelMap(context, totalPoints, currentLevel),
                             child: CyberCard(
+                              borderColor: isLocked ? CyberTheme.danger : CyberTheme.primary,
                               isGlowing: true,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -774,18 +806,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text("CURRENT CLEARANCE",
-                                              style: CyberTheme.techText(size: 10, color: CyberTheme.primary)),
+                                              style: CyberTheme.techText(
+                                                  size: 10,
+                                                  color: isLocked ? CyberTheme.danger : CyberTheme.primary)),
                                           Text("LEVEL $currentLevel",
-                                              style: CyberTheme.techText(size: 28, weight: FontWeight.bold, color: textColor)),
+                                              style: CyberTheme.techText(
+                                                  size: 28,
+                                                  weight: FontWeight.bold,
+                                                  color: textColor)),
                                         ],
                                       ),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 6),
                                         decoration: BoxDecoration(
-                                            border: Border.all(color: CyberTheme.primary),
+                                            border: Border.all(
+                                                color: isLocked ? CyberTheme.danger : CyberTheme.primary),
                                             borderRadius: BorderRadius.circular(4)),
                                         child: Text("$totalPoints PTS",
-                                            style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
+                                            style: CyberTheme.techText(
+                                                color: isLocked ? CyberTheme.danger : CyberTheme.primary,
+                                                weight: FontWeight.bold)),
                                       ),
                                     ],
                                   ),
@@ -796,10 +837,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       AnimatedContainer(
                                         duration: 1000.ms,
                                         height: 10,
-                                        width: MediaQuery.of(context).size.width * progress.clamp(0.0, 1.0) * 0.8,
+                                        width: MediaQuery.of(context).size.width *
+                                            progress.clamp(0.0, 1.0) *
+                                            0.8,
                                         decoration: BoxDecoration(
-                                          gradient: const LinearGradient(colors: [CyberTheme.primary, CyberTheme.secondary]),
-                                          boxShadow: [BoxShadow(color: CyberTheme.primary.withOpacity(0.5), blurRadius: 10)],
+                                          gradient: LinearGradient(colors: [
+                                            isLocked ? CyberTheme.danger : CyberTheme.primary,
+                                            CyberTheme.secondary
+                                          ]),
+                                          boxShadow: [
+                                            BoxShadow(
+                                                color: (isLocked ? CyberTheme.danger : CyberTheme.primary)
+                                                    .withOpacity(0.5),
+                                                blurRadius: 10)
+                                          ],
                                         ),
                                       ),
                                     ],
@@ -808,60 +859,160 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   Align(
                                       alignment: Alignment.centerRight,
                                       child: Text(
-                                          pointsNeeded > 0 ? "Level Up In $pointsNeeded PTS" : "MAXIMUM SYNC REACHED!",
-                                          style: CyberTheme.techText(size: 10, color: textColor))),
+                                          pointsNeeded > 0
+                                              ? "Level Up In $pointsNeeded PTS"
+                                              : "MAXIMUM SYNC REACHED!",
+                                          style: CyberTheme.techText(
+                                              size: 10, color: textColor))),
                                 ],
                               ),
                             ),
                           ),
+
+                          // ------------------------------------------
+                          // 2. RED WARNING BANNER
+                          // ------------------------------------------
+                          if (isLocked)
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: CyberTheme.danger.withOpacity(0.2),
+                                border: Border.all(color: CyberTheme.danger),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.warning_amber_rounded, color: CyberTheme.danger, size: 30),
+                                  const SizedBox(width: 15),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("BUDGET LOCKDOWN ACTIVE", 
+                                            style: CyberTheme.techText(color: CyberTheme.danger, weight: FontWeight.bold)),
+                                        const SizedBox(height: 5),
+                                        const Text("Earn points to unlock scanner features.", 
+                                            style: TextStyle(color: Colors.white70, fontSize: 10)),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
+                            ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(duration: 500.ms),
+
+                          // ------------------------------------------
+                          // 3. RECENT LOGS HEADER
+                          // ------------------------------------------
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                             child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: Text("> RECENT LOGS",
-                                    style: CyberTheme.techText(size: 16, weight: FontWeight.bold, color: textColor))),
+                                    style: CyberTheme.techText(
+                                        size: 16, weight: FontWeight.bold, color: textColor))),
                           ),
+
+                          // ------------------------------------------
+                          // 4. LOGS LIST (NOW SORTED)
+                          // ------------------------------------------
                           Expanded(
                             child: StreamBuilder<QuerySnapshot>(
                               stream: FirebaseFirestore.instance
                                   .collection('scans')
                                   .where('userId', isEqualTo: user.uid)
+                                  .orderBy('timestamp', descending: true) // 👈 THIS FIXES THE SORTING
                                   .snapshots(),
                               builder: (context, scanSnap) {
-                                if (!scanSnap.hasData) return const Center(child: CircularProgressIndicator());
+                                if (!scanSnap.hasData) {
+                                  return const Center(child: CircularProgressIndicator());
+                                }
                                 final docs = scanSnap.data!.docs;
                                 if (docs.isEmpty) {
-                                  return Center(child: Text("NO DATA FOUND", style: CyberTheme.techText(color: Colors.grey)));
+                                  return Center(
+                                      child: Text("NO DATA FOUND",
+                                          style: CyberTheme.techText(color: Colors.grey)));
                                 }
+
                                 return ListView.builder(
                                   padding: const EdgeInsets.only(top: 10, left: 16, right: 16, bottom: 250),
                                   itemCount: docs.length,
                                   itemBuilder: (context, index) {
                                     final data = docs[index].data() as Map<String, dynamic>;
                                     int score = data['carbon_score'] ?? 0;
-                                    Color scoreColor = score < 30 ? CyberTheme.primary : (score < 70 ? Colors.orange : CyberTheme.danger);
+                                    Color scoreColor = score < 30
+                                        ? CyberTheme.primary
+                                        : (score < 70
+                                            ? Colors.orange
+                                            : CyberTheme.danger);
                                     Timestamp? t = data['timestamp'];
                                     DateTime date = t != null ? t.toDate() : DateTime.now();
+                                    int? pImpact = data['points_impact'];
+                                    String pText = "";
+                                    Color pColor = Colors.grey;
+
+                                    if (pImpact != null) {
+                                      // New Data: Show exactly what was saved (+50 or -40)
+                                      pText = pImpact > 0 ? "+$pImpact PTS" : "$pImpact PTS";
+                                      pColor = pImpact > 0 ? CyberTheme.primary : CyberTheme.danger;
+                                    } else {
+                                      // Old Data Fallback: Scans are bad (-), Travel is neutral here
+                                      if (data['shadow_type'] != 'Travel') {
+                                        pText = "-$score PTS"; 
+                                        pColor = CyberTheme.danger;
+                                      }
+                                    }
 
                                     return CyberCard(
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: data))),
+                                      onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (_) => DetailScreen(data: data))),
                                       borderColor: scoreColor,
                                       child: Row(
                                         children: [
                                           Icon(Icons.qr_code_2, color: scoreColor, size: 30),
                                           const SizedBox(width: 16),
+                                          // 👇 REPLACE THE WHOLE 'Expanded' WIDGET WITH THIS
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text((data['item_name'] ?? "UNKNOWN").toUpperCase(),
-                                                    style: CyberTheme.techText(weight: FontWeight.bold, color: textColor)),
-                                                Text(getTimeAgo(date), style: CyberTheme.techText(size: 10, color: Colors.grey)),
+                                                // 1. Item Name
+                                                Text(
+                                                    (data['item_name'] ?? "UNKNOWN").toUpperCase(),
+                                                    style: CyberTheme.techText(
+                                                        weight: FontWeight.bold, color: textColor)),
+                                                
+                                                // 2. Time + Points (The New Part)
+                                                Row(
+                                                  children: [
+                                                    Text(getTimeAgo(date),
+                                                        style: CyberTheme.techText(
+                                                            size: 10, color: Colors.grey)),
+                                                    
+                                                    // Only show points if we have them
+                                                    if (pText.isNotEmpty) ...[
+                                                      const SizedBox(width: 8),
+                                                      Text(pText, 
+                                                           style: CyberTheme.techText(
+                                                             size: 10, 
+                                                             color: pColor, 
+                                                             weight: FontWeight.bold
+                                                           )),
+                                                    ]
+                                                  ],
+                                                ),
                                               ],
                                             ),
                                           ),
                                           Text("$score",
-                                              style: TextStyle(color: scoreColor, fontSize: 24, fontFamily: 'Courier', fontWeight: FontWeight.bold)),
+                                              style: TextStyle(
+                                                  color: scoreColor,
+                                                  fontSize: 24,
+                                                  fontFamily: 'Courier',
+                                                  fontWeight: FontWeight.bold)),
                                         ],
                                       ),
                                     ).animate().slideX();
@@ -880,7 +1031,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ConfettiWidget(
               confettiController: _confettiController,
               blastDirectionality: BlastDirectionality.explosive,
-              colors: const [CyberTheme.primary, CyberTheme.secondary, Colors.white],
+              colors: const [
+                CyberTheme.primary,
+                CyberTheme.secondary,
+                Colors.white
+              ],
             ),
           ],
         ),
@@ -950,13 +1105,20 @@ class DetailScreen extends StatelessWidget {
                     const SizedBox(height: 30),
                     Builder(
                       builder: (context) {
+                        if (data['shadow_type'] == 'Travel') return const SizedBox.shrink();
+
+                        // 1. Try to get swaps from the API response
                         Map<String, dynamic>? swaps;
+                        
                         if (data['smart_swaps'] != null) {
                            swaps = Map<String, dynamic>.from(data['smart_swaps']);
                         } else {
+                           // Fallback to local engine
                            swaps = SwapEngine.getSwaps(data['item_name'] ?? ""); 
                         }
+
                         if (swaps == null) return const SizedBox.shrink();
+
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1050,30 +1212,58 @@ class _TravelScreenState extends State<TravelScreen> {
     FocusScope.of(context).unfocus();
 
     setState(() => _isSaving = true);
+    
+    // 1. Calculate Pollution (Visual Score)
     double myEmission = dist * (_emissionFactors[_selectedMode] ?? 0.0);
-    int earnedPoints = (10 + ((dist * 0.192 - myEmission) * 20)).toInt().clamp(10, 150);
-    int visualScore = (100 - (myEmission * 10)).toInt().clamp(0, 100);
+    int visualScore = (myEmission * 50).toInt().clamp(0, 100); 
 
+    // 2. Calculate Points Impact (Reward vs Penalty)
+    int pointsImpact = 0;
+    
+    if (_selectedMode == "Walk" || _selectedMode == "Bicycle") {
+      // ✅ Eco-Friendly: You EARN points (+20 per km)
+      pointsImpact = (dist * 20).toInt(); 
+    } else if (_selectedMode == "Bus" || _selectedMode == "Train") {
+      // 🆗 Public Transport: Small Reward (+5 per km)
+      pointsImpact = (dist * 5).toInt();
+    } else {
+      // ❌ Car: You LOSE points (-20 per km)
+      pointsImpact = -(dist * 20).toInt(); 
+    }
+    
+    // Cap the impact so users don't break the game instantly
+    pointsImpact = pointsImpact.clamp(-200, 200);
+
+    // 3. Save to DB
     await FirebaseFirestore.instance.collection('scans').add({
       'item_name': "$_selectedMode Transport",
-      'carbon_score': visualScore,
+      'carbon_score': visualScore, 
       'shadow_type': "Travel",
       'nudge_text': "Mobility Log: $dist km via $_selectedMode",
       'tree_analogy': "Emission: ${myEmission.toStringAsFixed(2)} kg",
+      'points_impact': pointsImpact, // 👈 Saves + or - based on mode
       'userId': user.uid,
       'timestamp': FieldValue.serverTimestamp(),
     });
+
+    // 4. Update User Points
     await FirebaseFirestore.instance
         .collection('users')
         .doc(user.uid)
-        .update({'totalPoints': FieldValue.increment(earnedPoints)});
+        .update({'totalPoints': FieldValue.increment(pointsImpact)});
 
     if (mounted) {
       setState(() => _isSaving = false);
       _distanceController.clear();
+      
+      // Dynamic Message based on result
+      String msg = pointsImpact >= 0 
+          ? "TRIP LOGGED. +$pointsImpact PTS REWARD!" 
+          : "HIGH CARBON TRIP. $pointsImpact PTS DEDUCTED.";
+          
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text("TRIP LOGGED. +$earnedPoints PTS"),
-          backgroundColor: CyberTheme.primary));
+          content: Text(msg),
+          backgroundColor: pointsImpact >= 0 ? CyberTheme.primary : CyberTheme.danger));
     }
   }
 
@@ -1254,10 +1444,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Future<void> _analyzeImage() async {
-    final XFile? photo = await _picker.pickImage(source: ImageSource.camera, maxWidth: 400, maxHeight: 400, imageQuality: 40);
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera, 
+      maxWidth: 400, 
+      maxHeight: 400, 
+      imageQuality: 40
+    );
     if (photo == null) return;
+
     setState(() => _isLoading = true);
     String userLocation = _cachedLocation; 
+
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -1265,13 +1462,25 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}');
+
       final response = await http.post(url,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             "contents": [{
               "parts": [
                 {
-                  "text": "I am currently in $userLocation. Identify this object. Estimate Carbon Footprint Score (0-100). Provide 3 sustainable alternatives ('smart_swaps'): 1. Easy, 2. Medium, 3. Hero. Return ONLY raw JSON (no markdown): {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String', 'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}}"
+                  "text": "I am currently in $userLocation. Identify this object. "
+                          "Estimate Carbon Footprint Score (0-100). "
+                          "Provide 3 sustainable alternatives ('smart_swaps'): "
+                          "1. Easy, 2. Medium, 3. Hero. "
+                          "Return ONLY raw JSON (no markdown): {"
+                          "  'item_name': 'String', "
+                          "  'carbon_score': Int, "
+                          "  'shadow_type': 'String', "
+                          "  'nudge_text': 'String', "
+                          "  'tree_analogy': 'String', "
+                          "  'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}"
+                          "}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
               ]
@@ -1281,32 +1490,52 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
+        
         int startIndex = finalText.indexOf('{');
         int endIndex = finalText.lastIndexOf('}');
         if (startIndex != -1 && endIndex != -1) {
           finalText = finalText.substring(startIndex, endIndex + 1);
         }
+
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
+        
         int aiScore = parsedData['carbon_score'] ?? 50; 
         int variation = Random().nextInt(6) - 3; 
         int finalScore = (aiScore + variation).clamp(0, 100);
+
         parsedData['carbon_score'] = finalScore;
+
+        // 👇 NEW LOGIC: PIVOT SYSTEM
+        // 50 is the "Neutral" line.
+        // If Score is 10 (Apple): (50 - 10) * 2 = +80 Points.
+        // If Score is 90 (Burger): (50 - 90) * 2 = -80 Points.
+        int pointsImpact = (50 - finalScore) * 2; 
 
         if (mounted) {
            setState(() => _isLoading = false);
            Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
         }
+
+        // Save to DB
         await FirebaseFirestore.instance.collection('scans').add({
           ...parsedData,
+          'points_impact': pointsImpact, // Can be positive or negative now
           'userId': user.uid,
           'timestamp': FieldValue.serverTimestamp()
         });
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'totalPoints': FieldValue.increment(-finalScore)});
+
+        // Update Wallet
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({'totalPoints': FieldValue.increment(pointsImpact)});
+            
       } else {
         throw "API Error: ${response.statusCode}";
       }
     } catch (e) {
       if(mounted) setState(() => _isLoading = false);
+      print("Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Failed. Check Console.")));
     }
   }
