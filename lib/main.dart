@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart'; 
 import 'dart:ui';
 import 'dart:math';
 import 'package:http/http.dart' as http;
@@ -1142,17 +1142,13 @@ class _TravelScreenState extends State<TravelScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text("MOBILITY LOG"),
-          // 2. IOS SPECIFIC FIX: Add a button to hide keyboard
-          leading: Platform.isIOS
+          leading: defaultTargetPlatform == TargetPlatform.iOS
               ? IconButton(
-                  icon: const Icon(Icons.keyboard_arrow_down), // Looks like "Back/Down"
+                  icon: const Icon(Icons.keyboard_arrow_down),
                   tooltip: "Hide Keyboard",
-                  onPressed: () {
-                    // This command forces the keyboard to close
-                    FocusScope.of(context).unfocus();
-                  },
+                  onPressed: () => FocusScope.of(context).unfocus(),
                 )
-              : null, // On Android, this returns null (no button), using system back instead
+              : null, 
         ),
         body: CyberBackground(
           child: SingleChildScrollView(
