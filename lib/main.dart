@@ -700,7 +700,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 AppBar(
                   title: const Text("COMMAND CENTER"),
-                  // 🌟 NEW: Added Toggle Button Here
                   actions: [
                      ValueListenableBuilder<ThemeMode>(
                       valueListenable: themeNotifier,
@@ -954,7 +953,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 }
 
 // ---------------------------------------------------------
-// 6. DETAIL SCREEN
+// 6. DETAIL SCREEN (UPDATED: SMART SWAPS UI)
 // ---------------------------------------------------------
 class DetailScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -1033,6 +1032,43 @@ class DetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 30),
 
+                    // 👇 NEW: SMART SWAPS SECTION (3 LEVELS)
+                    Builder(
+                      builder: (context) {
+                        // 1. Try to get swaps from the API response
+                        Map<String, dynamic>? swaps;
+                        
+                        if (data['smart_swaps'] != null) {
+                           swaps = Map<String, dynamic>.from(data['smart_swaps']);
+                        } else {
+                           // Fallback to local engine
+                           swaps = SwapEngine.getSwaps(data['item_name'] ?? ""); 
+                        }
+
+                        if (swaps == null) return const SizedBox.shrink();
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("> INTELLIGENT ALTERNATIVES", 
+                                style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                _buildSwapCard("EASY", swaps['easy'] ?? "Reduce Usage", Colors.blue),
+                                const SizedBox(width: 8),
+                                _buildSwapCard("MED", swaps['medium'] ?? "Buy Used", Colors.orange),
+                                const SizedBox(width: 8),
+                                _buildSwapCard("HERO", swaps['hero'] ?? "Refuse Item", Colors.green),
+                              ],
+                            ),
+                            const SizedBox(height: 30),
+                          ],
+                        );
+                      }
+                    ),
+                    // 👆 END OF SMART SWAPS
+
                     CyberButton(
                       text: "VIEW CARBON SHADOW (AR)",
                       icon: Icons.view_in_ar,
@@ -1067,6 +1103,31 @@ class DetailScreen extends StatelessWidget {
     );
   }
 
+  // 👇 Helper for Swap Cards
+  Widget _buildSwapCard(String level, String text, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        height: 100,
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(8),
+          color: color.withOpacity(0.1),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(level, style: CyberTheme.techText(size: 10, color: color, weight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(text, 
+                 textAlign: TextAlign.center,
+                 style: const TextStyle(fontSize: 10, color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _detailRow(String label, String? value, Color? valColor, Color? defaultColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -1087,7 +1148,7 @@ class DetailScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 7. TRAVEL SCREEN (Fixed Colors for Light Mode)
+// 7. TRAVEL SCREEN
 // ---------------------------------------------------------
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key});
@@ -1200,9 +1261,6 @@ class _TravelScreenState extends State<TravelScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             // 🌟 FIXED VISIBILITY LOGIC
-                            // If selected & Light Mode -> Black Icon (visible on cyan)
-                            // If selected & Dark Mode -> Primary Cyan Icon
-                            // If not selected -> Grey
                             Icon(
                               mode == "Car"
                                   ? Icons.directions_car
@@ -1272,13 +1330,16 @@ class _TravelScreenState extends State<TravelScreen> {
 }
 
 // ---------------------------------------------------------
-// 8. SCANNER 
+// 8. SCANNER (OPTIMIZED)
 // ---------------------------------------------------------
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
 }
+
+// 🚀 Global cached location for speed
+String _cachedLocation = "Unknown Location";
 
 class _ScannerScreenState extends State<ScannerScreen> {
   final ImagePicker _picker = ImagePicker();
@@ -1318,18 +1379,31 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return "Unknown Location";
   }
 
+  // 🚀 FETCH LOCATION ON INIT
+  @override
+  void initState() {
+    super.initState();
+    _getCurrentLocation().then((loc) {
+      if(mounted) setState(() => _cachedLocation = loc);
+      print("Background Location Locked: $_cachedLocation");
+    });
+  }
+
   Future<void> _analyzeImage() async {
+    // ⚡ SPEED FIX 1: Aggressive Resizing
+    // Reduced from 600px to 400px, 50% to 40% quality
     final XFile? photo = await _picker.pickImage(
       source: ImageSource.camera, 
-      maxWidth: 600, 
-      maxHeight: 600, 
-      imageQuality: 50
+      maxWidth: 400, 
+      maxHeight: 400, 
+      imageQuality: 40
     );
     if (photo == null) return;
 
     setState(() => _isLoading = true);
     
-    String userLocation = await _getCurrentLocation(); 
+    // ⚡ SPEED FIX 2: Use cached location immediately
+    String userLocation = _cachedLocation; 
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -1345,10 +1419,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
             "contents": [{
               "parts": [
                 {
+                  // 🧠 UPDATED PROMPT WITH SWAP REQUEST
                   "text": "I am currently in $userLocation. Identify this object. "
-                          "Estimate Carbon Footprint Score (0-100) considering local availability and transport emissions. "
-                          "For example, if I am in India and this is a Mango, score is low. If I am in Canada, score is high. "
-                          "Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String'}"
+                          "Estimate Carbon Footprint Score (0-100). "
+                          "Provide 3 sustainable alternatives ('smart_swaps'): "
+                          "1. Easy, 2. Medium, 3. Hero. "
+                          "Return ONLY raw JSON (no markdown): {"
+                          "  'item_name': 'String', "
+                          "  'carbon_score': Int, "
+                          "  'shadow_type': 'String', "
+                          "  'nudge_text': 'String', "
+                          "  'tree_analogy': 'String', "
+                          "  'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}"
+                          "}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
               ]
@@ -1358,7 +1441,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
         String finalText = jsonResponse['candidates'][0]['content']['parts'][0]['text'];
-        finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
+        
+        // 🛡️ BULLETPROOF JSON CLEANING
+        int startIndex = finalText.indexOf('{');
+        int endIndex = finalText.lastIndexOf('}');
+        if (startIndex != -1 && endIndex != -1) {
+          finalText = finalText.substring(startIndex, endIndex + 1);
+        }
+
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
         
         int aiScore = parsedData['carbon_score'] ?? 50; 
@@ -1383,10 +1473,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
             .doc(user.uid)
             .update({'totalPoints': FieldValue.increment(-finalScore)});
             
+      } else {
+        throw "API Error: ${response.statusCode}";
       }
     } catch (e) {
       if(mounted) setState(() => _isLoading = false);
       print("Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Failed. Check Console.")));
     }
   }
 
@@ -1679,5 +1772,44 @@ class _ArScreenState extends State<ArScreen> {
         ],
       ),
     );
+  }
+}
+
+// ---------------------------------------------------------
+// 12. FALLBACK SWAP ENGINE
+// ---------------------------------------------------------
+class SwapEngine {
+  static Map<String, String>? getSwaps(String itemName) {
+    String name = itemName.toLowerCase();
+    
+    // 1. High Carbon Specifics
+    if (name.contains('burger') || name.contains('meat') || name.contains('beef')) {
+      return {
+        'easy': 'Chicken Burger',
+        'medium': 'Veg Patty',
+        'hero': 'Lentil Burger'
+      };
+    }
+    if (name.contains('car') || name.contains('vehicle')) {
+      return {
+        'easy': 'Carpooling',
+        'medium': 'Public Bus',
+        'hero': 'Bicycle'
+      };
+    }
+    if (name.contains('plastic') || name.contains('bottle')) {
+      return {
+        'easy': 'Recycle Bin',
+        'medium': 'Reuse Bottle',
+        'hero': 'Metal Flask'
+      };
+    }
+
+    // 2. Generic Fallback (Ensures UI always shows)
+    return {
+      'easy': 'Extend Use',
+      'medium': 'Buy Used',
+      'hero': 'Refuse Item'
+    };
   }
 }
