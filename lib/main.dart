@@ -441,13 +441,41 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } on FirebaseAuthException catch (e) {
+      // ---------------------------------------------------
+      // 🌟 CUSTOM ERROR MESSAGE LOGIC STARTS HERE
+      // ---------------------------------------------------
+      String customMessage = "ACCESS DENIED"; // Default fallback
+
+      switch (e.code) {
+        case 'invalid-email':
+          customMessage = "INVALID EMAIL SYNTAX. CHECK YOUR INPUT."; // <--- CHANGE THIS TEXT
+          break;
+        case 'user-not-found':
+          customMessage = "EMAIL NOT FOUND. PLEASE SIGN UP.";
+          break;
+        case 'wrong-password':
+          customMessage = "INCORRECT PASSWORD.";
+          break;
+        case 'email-already-in-use':
+          customMessage = "ID ALREADY EXISTS. LOG IN INSTEAD.";
+          break;
+        case 'weak-password':
+          customMessage = "PASSWORD TOO WEAK. STRENGTHEN SECURITY.";
+          break;
+        default:
+          customMessage = e.message ?? "SYSTEM ERROR"; // Fallback to Firebase message
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.message ?? "ACCESS DENIED"),
+          content: Text(customMessage),
           backgroundColor: CyberTheme.danger));
+      // ---------------------------------------------------
+      
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   Widget _buildInput(
       TextEditingController controller, String label, IconData icon,
