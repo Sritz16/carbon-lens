@@ -199,11 +199,12 @@ class ArLightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 📐 SCALING MATH
     final double scaleX = size.width / absoluteImageSize.height;
     final double scaleY = size.height / absoluteImageSize.width;
 
     for (var object in objects) {
-      // 1. Draw Box Rect
+      // 1. Draw the Box
       final rect = Rect.fromLTRB(
         object.boundingBox.left * scaleX,
         object.boundingBox.top * scaleY,
@@ -211,45 +212,79 @@ class ArLightPainter extends CustomPainter {
         object.boundingBox.bottom * scaleY,
       );
 
-      // 2. 🧠 SMARTER CLASSIFICATION LOGIC
-      // Default to NEUTRAL (Blue) instead of BAD (Red)
-      // This makes the Red warnings feel more "earned" and accurate.
+      // 2. 🧠 SMARTER LOGIC: Default to Blue (Neutral), not Red
       Paint chosenPaint = unknownPaint; 
       
       if (object.labels.isNotEmpty) {
         String label = object.labels.first.text.toLowerCase();
         
-        // 🌿 GREEN: Nature, Food, Paper, Wood, People
+        // 🌿 GREEN: Nature, Food, Paper, People
         if (label.contains("food") || 
             label.contains("plant") || 
             label.contains("fruit") || 
             label.contains("vegetable") ||
             label.contains("flower") ||
-            label.contains("wood") ||    // Sustainable material
-            label.contains("paper") ||   // Recyclable
-            label.contains("book") ||
-            label.contains("person")) {  // Humans aren't trash!
+            label.contains("tree") ||
+            label.contains("wood") ||    // Wood is usually sustainable
+            label.contains("paper") ||   
+            label.contains("person")) {  // Humans are not "High Carbon"!
           chosenPaint = goodPaint;
         } 
         
-        // 🏭 RED: Electronics, Plastics, Vehicles, Industrial
+        // 🏭 RED: Electronics, Plastics, Vehicles, Industrial, & Accessories
         else if (label.contains("electronic") || 
                  label.contains("computer") || 
                  label.contains("phone") || 
+                 label.contains("mobile") ||
+                 label.contains("cell") ||
+                 label.contains("screen") ||
                  label.contains("monitor") ||
+                 label.contains("laptop") ||
+                 label.contains("tablet") ||
+                 // 👇 NEW: Audio & Accessories
+                 label.contains("headphone") ||
+                 label.contains("headset") ||
+                 label.contains("earphone") ||
+                 label.contains("earbud") ||
+                 label.contains("audio") ||
+                 label.contains("speaker") ||
+                 label.contains("camera") ||
+                 label.contains("remote") ||
+                 label.contains("control") ||
+                 label.contains("game") ||
+                 label.contains("cable") ||
+                 label.contains("wire") ||
+                 label.contains("glass") ||  // Screens often detect as glass
+                 label.contains("watch") ||
+                 // 👇 NEW: Generic Manufactured Goods
+                 label.contains("tool") ||
+                 label.contains("hardware") ||
+                 label.contains("equipment") ||
+                 label.contains("accessory") ||
+                 label.contains("bag") ||    // Leather/Synthetic
+                 label.contains("shoe") ||   // Fast fashion
+                 label.contains("clothing") ||
                  label.contains("car") || 
                  label.contains("vehicle") || 
                  label.contains("plastic") || 
                  label.contains("bottle") || 
                  label.contains("can") ||
+                 label.contains("metal") ||  
                  label.contains("appliance")) {
           chosenPaint = badPaint;
         }
         
-        // 🔵 EVERYTHING ELSE IS BLUE (Neutral)
-        // Tables, Chairs, Walls, Rooms, "Home Goods", "Places"
+        // 🔵 BLUE: Everything else (Furniture, Rooms, Walls, Clothes, Bags)
+        // This effectively "ignores" the background noise.
+        // 🔵 NEUTRAL / BLUE
         else {
-           chosenPaint = unknownPaint;
+           // HACKATHON TRICK:
+           // If the label is just "Object" or "Home good", treat it as Red (safe bet).
+           if (label == "object" || label.contains("good") || label.contains("item")) {
+             chosenPaint = badPaint; // Force Red for vague items
+           } else {
+             chosenPaint = unknownPaint; // Truly unknown stuff stays Blue
+           }
         }
       }
 
@@ -257,14 +292,22 @@ class ArLightPainter extends CustomPainter {
       canvas.drawRect(rect, chosenPaint);
       canvas.drawRect(rect, borderPaint);
       
-      // 4. (Optional) Draw the Label Text above the box
-      // This proves to judges the AI is actually reading, not guessing.
+      // 4. (Optional) DRAW TEXT LABEL
+      // This helps you verify *what* the AI actually sees.
       if (object.labels.isNotEmpty) {
         final textSpan = TextSpan(
           text: object.labels.first.text.toUpperCase(),
-          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, backgroundColor: Colors.black54),
+          style: const TextStyle(
+            color: Colors.white, 
+            fontSize: 12, 
+            fontWeight: FontWeight.bold, 
+            backgroundColor: Colors.black45
+          ),
         );
-        final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
+        final textPainter = TextPainter(
+          text: textSpan, 
+          textDirection: TextDirection.ltr
+        );
         textPainter.layout();
         textPainter.paint(canvas, Offset(rect.left, rect.top - 20));
       }

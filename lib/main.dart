@@ -137,7 +137,7 @@ class CarbonTrackerApp extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 2. NATIVE PARTICLE ENGINE & BACKGROUND (NO GRIDS)
+// 2. NATIVE PARTICLE ENGINE & BACKGROUND
 // ---------------------------------------------------------
 class CyberBackground extends StatefulWidget {
   final Widget child;
@@ -216,8 +216,6 @@ class _CyberBackgroundState extends State<CyberBackground>
             },
           );
         }),
-
-        // NOTE: GridPainter removed as requested
 
         // Layer 3: Content
         SafeArea(child: widget.child),
@@ -713,15 +711,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      // Inside DashboardScreen StreamBuilder
                       final userData = userSnap.data!.data() as Map<String, dynamic>? ?? {};
+                      int totalPoints = userData['totalPoints'] ?? 100;
 
-                      // Default to 100 if the field is missing
-                      int totalPoints = userData['totalPoints'] ?? 100; 
-
-                      // OPTIONAL: Auto-reset if they hit 0 or negative (Game Over logic)
+                      // 👇 BUDGET LOCK LOGIC
+                      bool isLocked = totalPoints < 20; 
+                      
+                      // OPTIONAL: Auto-reset if they hit 0 or negative
                       if (totalPoints <= 0) {
-                        totalPoints = 0; // Or show "Game Over"
+                        totalPoints = 0; 
                       }
 
                       List<int> thresholds = [0, 100, 300, 600, 1000, 2000];
@@ -752,6 +750,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             onTap: () =>
                                 _showLevelMap(context, totalPoints, currentLevel),
                             child: CyberCard(
+                              borderColor: isLocked ? CyberTheme.danger : CyberTheme.primary,
                               isGlowing: true,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -765,7 +764,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           Text("CURRENT CLEARANCE",
                                               style: CyberTheme.techText(
                                                   size: 10,
-                                                  color: CyberTheme.primary)),
+                                                  color: isLocked ? CyberTheme.danger : CyberTheme.primary)),
                                           Text("LEVEL $currentLevel",
                                               style: CyberTheme.techText(
                                                   size: 28,
@@ -778,12 +777,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             horizontal: 12, vertical: 6),
                                         decoration: BoxDecoration(
                                             border: Border.all(
-                                                color: CyberTheme.primary),
+                                                color: isLocked ? CyberTheme.danger : CyberTheme.primary),
                                             borderRadius:
                                                 BorderRadius.circular(4)),
                                         child: Text("$totalPoints PTS",
                                             style: CyberTheme.techText(
-                                                color: CyberTheme.primary,
+                                                color: isLocked ? CyberTheme.danger : CyberTheme.primary,
                                                 weight: FontWeight.bold)),
                                       ),
                                     ],
@@ -799,13 +798,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             progress.clamp(0.0, 1.0) *
                                             0.8,
                                         decoration: BoxDecoration(
-                                          gradient: const LinearGradient(colors: [
-                                            CyberTheme.primary,
+                                          gradient: LinearGradient(colors: [
+                                            isLocked ? CyberTheme.danger : CyberTheme.primary,
                                             CyberTheme.secondary
                                           ]),
                                           boxShadow: [
                                             BoxShadow(
-                                                color: CyberTheme.primary
+                                                color: (isLocked ? CyberTheme.danger : CyberTheme.primary)
                                                     .withOpacity(0.5),
                                                 blurRadius: 10)
                                           ],
@@ -826,6 +825,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                             ),
                           ),
+
+                          // 👇 WARNING BANNER IF LOCKED
+                          if (isLocked)
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: CyberTheme.danger.withOpacity(0.2),
+                                border: Border.all(color: CyberTheme.danger),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.warning_amber_rounded, color: CyberTheme.danger, size: 30),
+                                  const SizedBox(width: 15),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("BUDGET LOCKDOWN ACTIVE", 
+                                            style: CyberTheme.techText(color: CyberTheme.danger, weight: FontWeight.bold)),
+                                        const SizedBox(height: 5),
+                                        const Text("Earn points to unlock scanner features.", 
+                                            style: TextStyle(color: Colors.white70, fontSize: 10)),
+                                      ],
+                                    ),
+                                  )
+                                ],
+                              ),
+                            ).animate(onPlay: (c) => c.repeat(reverse: true)).fade(duration: 500.ms),
 
                           Padding(
                             padding: const EdgeInsets.symmetric(
@@ -1019,6 +1049,33 @@ class DetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 30),
 
+                    // 👇 SMART SWAPS SECTION
+                    Builder(
+                      builder: (context) {
+                        final swaps = SwapEngine.getSwaps(data['item_name'] ?? "");
+                        if (swaps == null) return const SizedBox.shrink(); // Hide if no swaps
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("> INTELLIGENT ALTERNATIVES", 
+                                style: CyberTheme.techText(color: CyberTheme.primary, weight: FontWeight.bold)),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                _buildSwapCard("EASY", swaps['easy']!, Colors.blue),
+                                const SizedBox(width: 8),
+                                _buildSwapCard("MED", swaps['medium']!, Colors.orange),
+                                const SizedBox(width: 8),
+                                _buildSwapCard("HERO", swaps['hero']!, Colors.green),
+                              ],
+                            ),
+                            const SizedBox(height: 30),
+                          ],
+                        );
+                      }
+                    ),
+
                     // 👇 NEW BUTTON: VIEW CARBON SHADOW 👇
                     CyberButton(
                       text: "VIEW CARBON SHADOW (AR)",
@@ -1055,6 +1112,30 @@ class DetailScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildSwapCard(String level, String text, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        height: 100,
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(8),
+          color: color.withOpacity(0.1),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(level, style: CyberTheme.techText(size: 10, color: color, weight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(text, 
+                 textAlign: TextAlign.center,
+                 style: const TextStyle(fontSize: 10, color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _detailRow(String label, String? value, Color? valColor, Color? defaultColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -1075,7 +1156,7 @@ class DetailScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 7. TRAVEL SCREEN (With Light Mode Fixes)
+// 7. TRAVEL SCREEN
 // ---------------------------------------------------------
 class TravelScreen extends StatefulWidget {
   const TravelScreen({super.key});
@@ -1199,7 +1280,6 @@ class _TravelScreenState extends State<TravelScreen> {
               ),
               const SizedBox(height: 30),
               
-              // --- FIXED INPUT VISIBILITY ---
               Container(
                 decoration: BoxDecoration(
                   // Dark Mode = Black38, Light Mode = White (so text is readable)
@@ -1236,13 +1316,15 @@ class _TravelScreenState extends State<TravelScreen> {
 }
 
 // ---------------------------------------------------------
-// 8. SCANNER (FIXED INITIALIZE BUTTON)
+// 8. SCANNER (OPTIMIZED)
 // ---------------------------------------------------------
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
   @override
   State<ScannerScreen> createState() => _ScannerScreenState();
 }
+
+String _cachedLocation = "Unknown Location"; // Stores location for instant access
 
 class _ScannerScreenState extends State<ScannerScreen> {
   final ImagePicker _picker = ImagePicker();
@@ -1288,24 +1370,19 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Future<void> _analyzeImage() async {
-// ⚡ OPTIMIZED: Resize to 600px wide and lower quality to 50%
-// This reduces file size from ~5MB to ~50KB (100x smaller!)
+    // ⚡ SPEED FIX 1: Aggressive Resizing
     final XFile? photo = await _picker.pickImage(
       source: ImageSource.camera, 
-      maxWidth: 600, 
-      maxHeight: 600, 
-      imageQuality: 50
-    );
+      maxWidth: 400,   
+      maxHeight: 400,  
+      imageQuality: 40 
+    );    
     if (photo == null) return;
 
     setState(() => _isLoading = true);
     
-    // 👇 1. GET LOCATION BEFORE AI CALL
-    String userLocation = await _getCurrentLocation(); 
-    // (Optional: Show a toast like "Scanning from Kolkata...")
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // ⚡ SPEED FIX 2: Use Cached Location
+    String userLocation = _cachedLocation; 
 
     try {
       final bytes = await photo.readAsBytes();
@@ -1318,10 +1395,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             "contents": [{
               "parts": [
                 {
-                  // 👇 UPDATED PROMPT WITH LOCATION CONTEXT
-                  "text": "I am currently in $userLocation. Identify this object. "
-                          "Estimate Carbon Footprint Score (0-100) considering local availability and transport emissions. "
-                          "For example, if I am in India and this is a Mango, score is low. If I am in Canada, score is high. "
+                  "text": "I am in $userLocation. Identify object. Estimate Carbon Footprint Score (0-100). "
                           "Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String'}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
@@ -1335,47 +1409,50 @@ class _ScannerScreenState extends State<ScannerScreen> {
         finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
         
-        // ✅ NEW LOGIC: Trust Gemini's Location-Aware Score
-        // The AI now calculates the score based on your prompt ("I am in Kolkata...")
-        int aiScore = parsedData['carbon_score'] ?? 50; // Default to 50 if AI fails
+        // Trust the AI Score (with tiny variation)
+        int aiScore = parsedData['carbon_score'] ?? 50;
+        int variation = Random().nextInt(6) - 3; 
+        parsedData['carbon_score'] = (aiScore + variation).clamp(0, 100);
 
-        // Optional: Add a tiny bit of natural variation (±5 points) 
-        // so two scans of the same object feel "alive" but consistent.
-        int variation = Random().nextInt(6) - 3; // Generates -3 to +3
-        int finalScore = (aiScore + variation).clamp(0, 100);
-
-        parsedData['carbon_score'] = finalScore;
-
-        // --- 2. FAST NAVIGATION ---
         if (mounted) {
            setState(() => _isLoading = false);
            Navigator.push(context, MaterialPageRoute(builder: (_) => DetailScreen(data: parsedData)));
         }
 
-        // --- 3. CARBON BUDGET DEDUCTION ---
-        // Save scan
-        await FirebaseFirestore.instance.collection('scans').add({
-          ...parsedData,
-          'userId': user.uid,
-          'timestamp': FieldValue.serverTimestamp()
-        });
-
-        // Subtract points from user
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({'totalPoints': FieldValue.increment(-finalScore)});
+        // Save Data Logic...
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+           await FirebaseFirestore.instance.collection('scans').add({
+            ...parsedData,
+            'userId': user.uid,
+            'timestamp': FieldValue.serverTimestamp()
+          });
+          await FirebaseFirestore.instance.collection('users').doc(user.uid)
+              .update({'totalPoints': FieldValue.increment(-parsedData['carbon_score'])});
+        }
             
+      } else {
+        throw "API Error: ${response.statusCode}";
       }
     } catch (e) {
       if(mounted) setState(() => _isLoading = false);
       print("Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Analysis Failed. Try Again.")));
     }
   }
 
   @override
+  void initState() {
+    super.initState();
+    // 🚀 Start fetching location silently in the background
+    _getCurrentLocation().then((loc) {
+      if(mounted) setState(() => _cachedLocation = loc);
+      print("Location Locked: $_cachedLocation");
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Detect dark mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -1394,13 +1471,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 )
               : GestureDetector(
                   onTap: _analyzeImage,
-                  // --- FIXED BUTTON STYLING ---
                   child: Container(
                     width: 250,
                     height: 250,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      // Light mode: Solid white with border. Dark mode: Translucent black.
                       color: isDark ? Colors.black.withOpacity(0.5) : Colors.white,
                       border: Border.all(
                           color: isDark ? CyberTheme.primary : Colors.black, 
@@ -1417,7 +1492,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       children: [
                         Icon(Icons.add, 
                              size: 90, 
-                             // Icon color logic
                              color: isDark ? Colors.white : Colors.black), 
     
                         const SizedBox(height: 10),
@@ -1425,7 +1499,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
                             style: CyberTheme.techText(
                                 weight: FontWeight.bold, 
                                 spacing: 2,
-                                // Text color logic
                                 color: isDark ? CyberTheme.textMain : Colors.black))
                         ],
                       ),
@@ -1504,7 +1577,7 @@ class LeaderboardScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// 10. PROFILE (MOVED TOGGLE TO APPBAR)
+// 10. PROFILE
 // ---------------------------------------------------------
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -1516,7 +1589,6 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("MY PROFILE"),
-        // --- MOVED TOGGLE HERE ---
         actions: [
           ValueListenableBuilder<ThemeMode>(
             valueListenable: themeNotifier,
@@ -1524,7 +1596,7 @@ class ProfileScreen extends StatelessWidget {
               bool isLight = mode == ThemeMode.light;
               return Switch(
                 value: isLight,
-                activeThumbColor: Colors.black, // Dark switch for light mode
+                activeThumbColor: Colors.black, 
                 inactiveThumbColor: CyberTheme.primary,
                 inactiveTrackColor: Colors.black,
                 onChanged: (val) {
@@ -1570,8 +1642,6 @@ class ProfileScreen extends StatelessWidget {
                   Text((data['displayName'] ?? "UNKNOWN").toUpperCase(),
                       style: CyberTheme.techText(size: 24, weight: FontWeight.bold, color: textColor)),
                   Text(user.email ?? "", style: CyberTheme.techText(color: Colors.grey)),
-                  
-                  // NOTE: Toggle switch removed from here as requested
                   
                   const SizedBox(height: 40),
 
@@ -1620,7 +1690,6 @@ class _ArScreenState extends State<ArScreen> {
             color: Colors.black.withOpacity(0.6),
             colorBlendMode: BlendMode.darken,
           ),
-          // NOTE: GridPainter removed from AR view as well to be consistent
           Center(
             child: Container(
               width: 280,
@@ -1679,5 +1748,36 @@ class _ArScreenState extends State<ArScreen> {
         ],
       ),
     );
+  }
+}
+
+// 💡 SMART SWAP ENGINE
+class SwapEngine {
+  static Map<String, String>? getSwaps(String itemName) {
+    String name = itemName.toLowerCase();
+    
+    if (name.contains('burger') || name.contains('meat') || name.contains('beef')) {
+      return {
+        'easy': 'Chicken Burger (-30%)',
+        'medium': 'Vegetarian Patty (-60%)',
+        'hero': 'Lentil/Bean Burger (-95%)'
+      };
+    }
+    if (name.contains('car') || name.contains('vehicle') || name.contains('drive')) {
+      return {
+        'easy': 'Carpooling (-50%)',
+        'medium': 'Public Bus (-70%)',
+        'hero': 'Bicycle / Walk (-100%)'
+      };
+    }
+    if (name.contains('plastic') || name.contains('bottle')) {
+      return {
+        'easy': 'Recycle Bin (Neutral)',
+        'medium': 'Reuse Bottle (-50%)',
+        'hero': 'Metal Flask (Zero Waste)'
+      };
+    }
+    // Return null if no swaps are needed (for good items)
+    return null;
   }
 }
