@@ -11,6 +11,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:confetti/confetti.dart';
 import 'realtime_scanner.dart'; 
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 // ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw";
@@ -485,7 +487,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.hexagon_outlined, size: 80, color: CyberTheme.primary)
+                const Icon(Icons.hexagon_outlined, size: 80, color: CyberTheme.primary)
                     .animate(onPlay: (c) => c.repeat())
                     .rotate(duration: 10.seconds),
                 const SizedBox(height: 20),
@@ -1215,7 +1217,7 @@ class _TravelScreenState extends State<TravelScreen> {
                     labelText: "DISTANCE (KM)",
                     labelStyle: TextStyle(color: isDark ? Colors.grey : Colors.grey.shade600),
                     border: InputBorder.none,
-                    prefixIcon: Icon(Icons.timeline, color: Colors.grey),
+                    prefixIcon: const Icon(Icons.timeline, color: Colors.grey),
                     contentPadding: const EdgeInsets.all(16),
                   ),
                 ),
@@ -1246,17 +1248,61 @@ class _ScannerScreenState extends State<ScannerScreen> {
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
 
+  // 📍 LOCATION HELPER
+  Future<String> _getCurrentLocation() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // 1. Check if GPS is on
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return "Unknown Location";
+
+    // 2. Check Permissions
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return "Unknown Location";
+    }
+    if (permission == LocationPermission.deniedForever) return "Unknown Location";
+
+    // 3. Get Position
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low // Low is faster and enough for City level
+      );
+
+      // 4. Convert to Address (Reverse Geocoding)
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude, 
+        position.longitude
+      );
+      
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        return "${place.locality}, ${place.country}"; // Returns "Kolkata, India"
+      }
+    } catch (e) {
+      print("Location Error: $e");
+    }
+    return "Unknown Location";
+  }
+
   Future<void> _analyzeImage() async {
 // ⚡ OPTIMIZED: Resize to 600px wide and lower quality to 50%
 // This reduces file size from ~5MB to ~50KB (100x smaller!)
     final XFile? photo = await _picker.pickImage(
       source: ImageSource.camera, 
-      maxWidth: 600,   // Resize huge images
-      maxHeight: 600,  // Resize huge images
-      imageQuality: 50 // Compress slightly more
-    );    
+      maxWidth: 600, 
+      maxHeight: 600, 
+      imageQuality: 50
+    );
     if (photo == null) return;
+
     setState(() => _isLoading = true);
+    
+    // 👇 1. GET LOCATION BEFORE AI CALL
+    String userLocation = await _getCurrentLocation(); 
+    // (Optional: Show a toast like "Scanning from Kolkata...")
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -1272,7 +1318,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
             "contents": [{
               "parts": [
                 {
-                  "text": "Identify object. Estimate Carbon Footprint Score (0-100). Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String'}"
+                  // 👇 UPDATED PROMPT WITH LOCATION CONTEXT
+                  "text": "I am currently in $userLocation. Identify this object. "
+                          "Estimate Carbon Footprint Score (0-100) considering local availability and transport emissions. "
+                          "For example, if I am in India and this is a Mango, score is low. If I am in Canada, score is high. "
+                          "Return ONLY raw JSON: {'item_name': 'String', 'carbon_score': Int, 'shadow_type': 'String', 'nudge_text': 'String', 'tree_analogy': 'String'}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
               ]
@@ -1285,13 +1335,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
         finalText = finalText.replaceAll("```json", "").replaceAll("```", "").trim();
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
         
-        // --- 1. SEEDED RANDOM SCORE ---
-        String name = parsedData['item_name'] ?? "Unknown";
-        int nameSeed = name.codeUnits.fold(0, (p, e) => p + e);
-        Random r = Random(nameSeed);
-        // Logic: Valid range 30-90
-        int score = 30 + r.nextInt(60); 
-        parsedData['carbon_score'] = score;
+        // ✅ NEW LOGIC: Trust Gemini's Location-Aware Score
+        // The AI now calculates the score based on your prompt ("I am in Kolkata...")
+        int aiScore = parsedData['carbon_score'] ?? 50; // Default to 50 if AI fails
+
+        // Optional: Add a tiny bit of natural variation (±5 points) 
+        // so two scans of the same object feel "alive" but consistent.
+        int variation = Random().nextInt(6) - 3; // Generates -3 to +3
+        int finalScore = (aiScore + variation).clamp(0, 100);
+
+        parsedData['carbon_score'] = finalScore;
 
         // --- 2. FAST NAVIGATION ---
         if (mounted) {
@@ -1311,7 +1364,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .update({'totalPoints': FieldValue.increment(-score)});
+            .update({'totalPoints': FieldValue.increment(-finalScore)});
             
       }
     } catch (e) {

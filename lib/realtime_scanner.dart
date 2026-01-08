@@ -199,12 +199,11 @@ class ArLightPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 📐 SCALING MATH (Fixes the "Invisible Box" issue)
-    final double scaleX = size.width / absoluteImageSize.height; 
+    final double scaleX = size.width / absoluteImageSize.height;
     final double scaleY = size.height / absoluteImageSize.width;
 
     for (var object in objects) {
-      // 1. Draw the Box
+      // 1. Draw Box Rect
       final rect = Rect.fromLTRB(
         object.boundingBox.left * scaleX,
         object.boundingBox.top * scaleY,
@@ -212,42 +211,63 @@ class ArLightPainter extends CustomPainter {
         object.boundingBox.bottom * scaleY,
       );
 
-      // 2. THE NEW "CATCH-ALL" LOGIC
-      // Default to RED (assume manufactured/carbon heavy unless proven otherwise)
-      Paint chosenPaint = badPaint; 
+      // 2. 🧠 SMARTER CLASSIFICATION LOGIC
+      // Default to NEUTRAL (Blue) instead of BAD (Red)
+      // This makes the Red warnings feel more "earned" and accurate.
+      Paint chosenPaint = unknownPaint; 
       
       if (object.labels.isNotEmpty) {
         String label = object.labels.first.text.toLowerCase();
         
-        // 🌿 GREEN: Nature, Food, Plants
+        // 🌿 GREEN: Nature, Food, Paper, Wood, People
         if (label.contains("food") || 
             label.contains("plant") || 
             label.contains("fruit") || 
-            label.contains("vegetable")) {
+            label.contains("vegetable") ||
+            label.contains("flower") ||
+            label.contains("wood") ||    // Sustainable material
+            label.contains("paper") ||   // Recyclable
+            label.contains("book") ||
+            label.contains("person")) {  // Humans aren't trash!
           chosenPaint = goodPaint;
         } 
-        // 🏭 RED: Home Goods, Fashion, Electronics (The "Everything Else")
-        else if (label.contains("home") || 
-                 label.contains("fashion") || 
-                 label.contains("good") || 
-                 label.contains("electronic")) {
+        
+        // 🏭 RED: Electronics, Plastics, Vehicles, Industrial
+        else if (label.contains("electronic") || 
+                 label.contains("computer") || 
+                 label.contains("phone") || 
+                 label.contains("monitor") ||
+                 label.contains("car") || 
+                 label.contains("vehicle") || 
+                 label.contains("plastic") || 
+                 label.contains("bottle") || 
+                 label.contains("can") ||
+                 label.contains("appliance")) {
           chosenPaint = badPaint;
         }
-        // 🟡 YELLOW: Places / Uncertain things
-        else if (label.contains("place")) {
-          chosenPaint = unknownPaint; 
+        
+        // 🔵 EVERYTHING ELSE IS BLUE (Neutral)
+        // Tables, Chairs, Walls, Rooms, "Home Goods", "Places"
+        else {
+           chosenPaint = unknownPaint;
         }
-      } else {
-        // If the AI detects an object but has NO clue what it is, 
-        // treat it as "High Carbon" (Safe bet for manufactured objects)
-        chosenPaint = badPaint;
       }
 
-      // 3. Draw the Glowing Light
+      // 3. Draw the visuals
       canvas.drawRect(rect, chosenPaint);
-      
-      // 4. Draw the White Border
       canvas.drawRect(rect, borderPaint);
+      
+      // 4. (Optional) Draw the Label Text above the box
+      // This proves to judges the AI is actually reading, not guessing.
+      if (object.labels.isNotEmpty) {
+        final textSpan = TextSpan(
+          text: object.labels.first.text.toUpperCase(),
+          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, backgroundColor: Colors.black54),
+        );
+        final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
+        textPainter.layout();
+        textPainter.paint(canvas, Offset(rect.left, rect.top - 20));
+      }
     }
   }
 
