@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 class CarbonBrain {
-  // ⚠️ PASTE YOUR API KEY HERE (The one you used for "Key Finder")
   static const apiKey = 'AIzaSyB2Gv_k4xPKmMuFBS_OtFRBkHIyne18ts8';
 
   Future<String> analyzeCarbonFootprint(String imagePath) async {

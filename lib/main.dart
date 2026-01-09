@@ -567,7 +567,6 @@ class _MainScreenState extends State<MainScreen> {
         children: [
           _pages[_currentIndex],
           
-          // 👇 NEW CUSTOM AR DOCK WIDGET (Replaces FloatingActionButton)
           Positioned(
             bottom: 140, 
             right: 20,   
@@ -914,7 +913,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               stream: FirebaseFirestore.instance
                                   .collection('scans')
                                   .where('userId', isEqualTo: user.uid)
-                                  .orderBy('timestamp', descending: true) // 👈 THIS FIXES THE SORTING
+                                  .orderBy('timestamp', descending: true) 
                                   .snapshots(),
                               builder: (context, scanSnap) {
                                 if (!scanSnap.hasData) {
@@ -945,11 +944,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     Color pColor = Colors.grey;
 
                                     if (pImpact != null) {
-                                      // New Data: Show exactly what was saved (+50 or -40)
                                       pText = pImpact > 0 ? "+$pImpact PTS" : "$pImpact PTS";
                                       pColor = pImpact > 0 ? CyberTheme.primary : CyberTheme.danger;
                                     } else {
-                                      // Old Data Fallback
                                       if (data['shadow_type'] != 'Travel') {
                                         pText = "-$score PTS"; 
                                         pColor = CyberTheme.danger;
@@ -1761,9 +1758,8 @@ class _ArFloatingDockState extends State<ArFloatingDock> with SingleTickerProvid
                       )
                     : SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
-                        physics: const NeverScrollableScrollPhysics(), // Disable user scrolling
+                        physics: const NeverScrollableScrollPhysics(), 
                         child: Container(
-                          // Force minimum width to ensure centering works correctly
                           constraints: const BoxConstraints(minWidth: 60, minHeight: 60),
                           padding: const EdgeInsets.symmetric(horizontal: 15),
                           child: Row(

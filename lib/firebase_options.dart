@@ -1,14 +1,11 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for use with your Firebase apps.
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    // 1. Check if running on Web FIRST
     if (kIsWeb) {
       return web;
     }
-    // 2. Otherwise check mobile platforms
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
@@ -30,9 +27,6 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // ---------------------------------------------------------
-  // 👇 PASTE YOUR WEB CONFIG HERE (FROM FIREBASE CONSOLE) 👇
-
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyB2Gv_k4xPKmMuFBS_OtFRBkHIyne18ts8',
     appId: '1:312487021634:web:05acf4582305ee88a831db',
@@ -53,9 +47,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'carbon-shadow-tracker-db297.firebasestorage.app',
   );
 
-  // ---------------------------------------------------------
-  // 👇 IOS CONFIG (KEEP THIS AS IS) 👇
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCF7p1BsPTJXsP5ml_BupyRUweAur_kHgE',
     appId: '1:312487021634:ios:ddd7fdb3d1b4f9c4a831db',
@@ -65,7 +56,6 @@ class DefaultFirebaseOptions {
     iosBundleId: 'com.example.carbonshadowtracker',
   );
 
-  // ---------------------------------------------------------
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyCF7p1BsPTJXsP5ml_BupyRUweAur_kHgE',

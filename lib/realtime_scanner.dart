@@ -66,20 +66,17 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
         return;
       }
 
-      // ✅ FIX 1: Smart Camera Selection
       // Tries to find a Back Camera (Phone). If none (Laptop), picks the first available one.
       final camera = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cameras.first, 
       );
 
-      // ✅ FIX 2: Initialize with LOW resolution
       // 'medium' or 'low' prevents freezing on laptop webcams.
       _controller = CameraController(
         camera,
         ResolutionPreset.medium, 
         enableAudio: false,
-        // ✅ FIX 3: Web-Safe Image Format
         // 'kIsWeb' prevents the app from crashing by checking for "Android" on a browser.
         imageFormatGroup: kIsWeb 
             ? ImageFormatGroup.unknown 
@@ -278,13 +275,12 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           )),
-        // ✅ PASTE THIS AT THE BOTTOM OF YOUR 'Stack' CHILDREN LIST
           Positioned(
-            top: 40, // Moves it down from the top status bar
+            top: 40, 
             left: 20,
             child: GestureDetector(
               onTap: () {
-                Navigator.of(context).pop(); // <--- Go back to Dashboard
+                Navigator.of(context).pop(); 
               },
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -567,7 +563,6 @@ class _CyberTextState extends State<CyberText> {
     if (oldWidget.text != widget.text) _animate();
   }
 
-  // 🛠️ FIX: Added (!mounted) checks to prevent crash
   void _animate() async {
     String target = widget.text;
     for (int i = 0; i <= target.length; i++) {
