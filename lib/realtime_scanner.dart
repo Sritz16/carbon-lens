@@ -88,9 +88,9 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
                 : ImageFormatGroup.bgra8888),
       );
 
-      await _controller!.initialize();
+      await _controller.initialize();
       
-      _controller!.startImageStream((image) {
+      _controller.startImageStream((image) {
         if (_isProcessing) return; // Prevents freezing by skipping frames if busy
         _isProcessing = true;
         
@@ -532,8 +532,8 @@ class _CornerPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
     
-    canvas.drawLine(Offset(0, 0), Offset(size.width, 0), paint);
-    canvas.drawLine(Offset(0, 0), Offset(0, size.height), paint);
+    canvas.drawLine(const Offset(0, 0), Offset(size.width, 0), paint);
+    canvas.drawLine(const Offset(0, 0), Offset(0, size.height), paint);
   }
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;

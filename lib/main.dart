@@ -1694,7 +1694,7 @@ class _ArFloatingDockState extends State<ArFloatingDock> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final color = CyberTheme.secondary;
+    const color = CyberTheme.secondary;
     
     // Logic: Collapse text if Activating.
     // On Mobile (!kIsWeb), we default to expanded unless activating.
@@ -1769,7 +1769,7 @@ class _ArFloatingDockState extends State<ArFloatingDock> with SingleTickerProvid
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.view_in_ar, color: Colors.white, size: 28)
+                              const Icon(Icons.view_in_ar, color: Colors.white, size: 28)
                                   .animate(target: showExpanded ? 1 : 0)
                                   .scaleXY(end: 1.1, duration: 300.ms),
                               
