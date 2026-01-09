@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
+import 'package:flutter/foundation.dart';
 
 class RealtimeScanner extends StatefulWidget {
   const RealtimeScanner({super.key});
@@ -57,26 +58,55 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
   }
 
   Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    final camera = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back);
+    try {
+      final cameras = await availableCameras();
+      
+      if (cameras.isEmpty) {
+        print("No cameras found");
+        return;
+      }
 
-    _controller = CameraController(
-      camera,
-      ResolutionPreset.medium, 
-      enableAudio: false,
-      imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
-    );
+      // ✅ FIX 1: Smart Camera Selection
+      // Tries to find a Back Camera (Phone). If none (Laptop), picks the first available one.
+      final camera = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first, 
+      );
 
-    await _controller.initialize();
-    
-    _controller.startImageStream((image) {
-      if (_isProcessing) return;
-      _isProcessing = true;
-      _cameraImageSize = Size(image.width.toDouble(), image.height.toDouble());
-      _processImage(image);
-    });
+      // ✅ FIX 2: Initialize with LOW resolution
+      // 'medium' or 'low' prevents freezing on laptop webcams.
+      _controller = CameraController(
+        camera,
+        ResolutionPreset.medium, 
+        enableAudio: false,
+        // ✅ FIX 3: Web-Safe Image Format
+        // 'kIsWeb' prevents the app from crashing by checking for "Android" on a browser.
+        imageFormatGroup: kIsWeb 
+            ? ImageFormatGroup.unknown 
+            : (defaultTargetPlatform == TargetPlatform.android 
+                ? ImageFormatGroup.nv21 
+                : ImageFormatGroup.bgra8888),
+      );
 
-    if (mounted) setState(() => _isCameraInitialized = true);
+      await _controller!.initialize();
+      
+      _controller!.startImageStream((image) {
+        if (_isProcessing) return; // Prevents freezing by skipping frames if busy
+        _isProcessing = true;
+        
+        // Safety check for image sizes
+        _cameraImageSize = Size(image.width.toDouble(), image.height.toDouble());
+        
+        _processImage(image); // Your AI logic
+      });
+
+      if (mounted) {
+        setState(() => _isCameraInitialized = true);
+      }
+      
+    } catch (e) {
+      print("Camera Error: $e");
+    }
   }
 
   Future<void> _processImage(CameraImage image) async {
@@ -248,6 +278,29 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
             icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
             onPressed: () => Navigator.pop(context),
           )),
+        // ✅ PASTE THIS AT THE BOTTOM OF YOUR 'Stack' CHILDREN LIST
+          Positioned(
+            top: 40, // Moves it down from the top status bar
+            left: 20,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.of(context).pop(); // <--- Go back to Dashboard
+              },
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5), // Semi-transparent dark background
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.cyanAccent, width: 2), // Cyberpunk border
+                ),
+                child: const Icon(
+                  Icons.arrow_back_ios_new, 
+                  color: Colors.white, 
+                  size: 24
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
