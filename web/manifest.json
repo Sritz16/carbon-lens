@@ -1,6 +1,6 @@
 {
-    "name": "carbonshadowtracker",
-    "short_name": "carbonshadowtracker",
+    "name": "Carbon Lens",
+    "short_name": "Carbon Lens",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

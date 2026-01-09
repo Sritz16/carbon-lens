@@ -15,7 +15,6 @@ import 'realtime_scanner.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-// ⚠️ YOUR API KEY
 const String apiKey = "AIzaSyDu0fv0DEOHisIfgAM9sxJ5Qx0AJ_a_RCw";
 
 // Global Theme Notifier for Toggle
@@ -75,9 +74,8 @@ class CarbonTrackerApp extends StatelessWidget {
       builder: (_, mode, __) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Carbon Shadow Protocol',
+          title: 'Carbon Lens',          
           themeMode: mode, 
-          
           theme: ThemeData(
             brightness: Brightness.light,
             scaffoldBackgroundColor: CyberTheme.lightBackground,
@@ -539,7 +537,7 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ---------------------------------------------------------
-// 5. MAIN SCREEN (FIXED ICONS & NAVIGATION BAR)
+// 5. MAIN SCREEN
 // ---------------------------------------------------------
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -585,7 +583,6 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          // FIX: Explicit background colors for bar
           color: isDark ? Colors.black.withOpacity(0.9) : Colors.white.withOpacity(0.9),
           border: Border(top: BorderSide(
               color: isDark ? CyberTheme.primary.withOpacity(0.2) : Colors.black12
@@ -599,17 +596,16 @@ class _MainScreenState extends State<MainScreen> {
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) => setState(() => _currentIndex = index),
           
-          // FIX: Removed 'const' to allow dynamic color switching
           destinations: [
             NavigationDestination(
                 icon: Icon(Icons.grid_view, color: isDark ? Colors.grey : Colors.grey.shade600),
                 selectedIcon: Icon(Icons.grid_view, 
                     // FIX: Black icon in Light Mode to contrast with green bubble
                     color: isDark ? CyberTheme.primary : Colors.black), 
-                label: "HUD"),
+                label: "DASH"),
             NavigationDestination(
                 icon: Icon(Icons.commute, color: isDark ? Colors.grey : Colors.grey.shade600),
-                selectedIcon: Icon(Icons.commute, 
+                selectedIcon: Icon(Icons.commute,
                     color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "TRAVEL"),
             NavigationDestination(
@@ -915,7 +911,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
 
                           // ------------------------------------------
-                          // 4. LOGS LIST (NOW SORTED)
+                          // 4. LOGS LIST
                           // ------------------------------------------
                           Expanded(
                             child: StreamBuilder<QuerySnapshot>(
@@ -1221,17 +1217,13 @@ class _TravelScreenState extends State<TravelScreen> {
     int pointsImpact = 0;
     
     if (_selectedMode == "Walk" || _selectedMode == "Bicycle") {
-      // ✅ Eco-Friendly: You EARN points (+20 per km)
       pointsImpact = (dist * 20).toInt(); 
     } else if (_selectedMode == "Bus" || _selectedMode == "Train") {
-      // 🆗 Public Transport: Small Reward (+5 per km)
       pointsImpact = (dist * 5).toInt();
     } else {
-      // ❌ Car: You LOSE points (-20 per km)
       pointsImpact = -(dist * 20).toInt(); 
     }
     
-    // Cap the impact so users don't break the game instantly
     pointsImpact = pointsImpact.clamp(-200, 200);
 
     // 3. Save to DB
@@ -1269,7 +1261,6 @@ class _TravelScreenState extends State<TravelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Detect if Dark Mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
@@ -1336,7 +1327,6 @@ class _TravelScreenState extends State<TravelScreen> {
                                           : mode == "Bicycle"
                                               ? Icons.directions_bike
                                               : Icons.directions_walk,
-                              // 🌟 ICON COLOR: Black in Light Mode (for visibility), Cyan in Dark Mode
                               color: isSelected
                                   ? (isDark ? CyberTheme.primary : Colors.black)
                                   : (isDark ? Colors.grey : Colors.grey.shade700),
@@ -1345,7 +1335,6 @@ class _TravelScreenState extends State<TravelScreen> {
                             const SizedBox(height: 8),
                             Text(mode.toUpperCase(),
                                 style: TextStyle(
-                                    // 🌟 TEXT COLOR: Match Icon
                                     color: isSelected
                                         ? (isDark ? CyberTheme.primary : Colors.black)
                                         : (isDark ? Colors.grey : Colors.grey.shade700),
@@ -1505,10 +1494,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
         parsedData['carbon_score'] = finalScore;
 
-        // 👇 NEW LOGIC: PIVOT SYSTEM
-        // 50 is the "Neutral" line.
-        // If Score is 10 (Apple): (50 - 10) * 2 = +80 Points.
-        // If Score is 90 (Burger): (50 - 90) * 2 = -80 Points.
         int pointsImpact = (50 - finalScore) * 2; 
 
         if (mounted) {
@@ -1519,7 +1504,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         // Save to DB
         await FirebaseFirestore.instance.collection('scans').add({
           ...parsedData,
-          'points_impact': pointsImpact, // Can be positive or negative now
+          'points_impact': pointsImpact,
           'userId': user.uid,
           'timestamp': FieldValue.serverTimestamp()
         });
