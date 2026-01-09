@@ -1,4 +1,4 @@
-# Carbon Shadow Tracker 🌍
+# Carbon Lens
 *A Hackathon Project*
 
 ## What it does
