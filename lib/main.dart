@@ -539,7 +539,7 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ---------------------------------------------------------
-// 5. MAIN SCREEN (FIXED ICONS & NAVIGATION BAR)
+// 5. MAIN SCREEN (MODIFIED WITH AR DOCK)
 // ---------------------------------------------------------
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -568,24 +568,21 @@ class _MainScreenState extends State<MainScreen> {
         fit: StackFit.expand,
         children: [
           _pages[_currentIndex],
+          
+          // 👇 NEW CUSTOM AR DOCK WIDGET (Replaces FloatingActionButton)
           Positioned(
             bottom: 140, 
             right: 20,   
-            child: FloatingActionButton(
-              heroTag: "global_ar_scanner_btn", 
-              elevation: 10,
-              backgroundColor: CyberTheme.secondary,
-              onPressed: () {
+            child: ArFloatingDock(
+              onActivate: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const RealtimeScanner()));
               },
-              child: const Icon(Icons.view_in_ar, color: Colors.white),
             ),
           ),
         ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          // FIX: Explicit background colors for bar
           color: isDark ? Colors.black.withOpacity(0.9) : Colors.white.withOpacity(0.9),
           border: Border(top: BorderSide(
               color: isDark ? CyberTheme.primary.withOpacity(0.2) : Colors.black12
@@ -594,17 +591,14 @@ class _MainScreenState extends State<MainScreen> {
         child: NavigationBar(
           height: 70,
           backgroundColor: Colors.transparent,
-          // Background bubble color logic
           indicatorColor: CyberTheme.primary.withOpacity(isDark ? 0.2 : 0.3),
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) => setState(() => _currentIndex = index),
           
-          // FIX: Removed 'const' to allow dynamic color switching
           destinations: [
             NavigationDestination(
                 icon: Icon(Icons.grid_view, color: isDark ? Colors.grey : Colors.grey.shade600),
                 selectedIcon: Icon(Icons.grid_view, 
-                    // FIX: Black icon in Light Mode to contrast with green bubble
                     color: isDark ? CyberTheme.primary : Colors.black), 
                 label: "HUD"),
             NavigationDestination(
@@ -726,7 +720,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 AppBar(
                   title: const Text("COMMAND CENTER"),
                   actions: [
-                     ValueListenableBuilder<ThemeMode>(
+                      ValueListenableBuilder<ThemeMode>(
                       valueListenable: themeNotifier,
                       builder: (context, mode, child) {
                         bool isLight = mode == ThemeMode.light;
@@ -957,7 +951,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       pText = pImpact > 0 ? "+$pImpact PTS" : "$pImpact PTS";
                                       pColor = pImpact > 0 ? CyberTheme.primary : CyberTheme.danger;
                                     } else {
-                                      // Old Data Fallback: Scans are bad (-), Travel is neutral here
+                                      // Old Data Fallback
                                       if (data['shadow_type'] != 'Travel') {
                                         pText = "-$score PTS"; 
                                         pColor = CyberTheme.danger;
@@ -974,7 +968,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         children: [
                                           Icon(Icons.qr_code_2, color: scoreColor, size: 30),
                                           const SizedBox(width: 16),
-                                          // 👇 REPLACE THE WHOLE 'Expanded' WIDGET WITH THIS
                                           Expanded(
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -985,22 +978,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                     style: CyberTheme.techText(
                                                         weight: FontWeight.bold, color: textColor)),
                                                 
-                                                // 2. Time + Points (The New Part)
+                                                // 2. Time + Points
                                                 Row(
                                                   children: [
                                                     Text(getTimeAgo(date),
                                                         style: CyberTheme.techText(
                                                             size: 10, color: Colors.grey)),
                                                     
-                                                    // Only show points if we have them
                                                     if (pText.isNotEmpty) ...[
                                                       const SizedBox(width: 8),
                                                       Text(pText, 
-                                                           style: CyberTheme.techText(
-                                                             size: 10, 
-                                                             color: pColor, 
-                                                             weight: FontWeight.bold
-                                                           )),
+                                                         style: CyberTheme.techText(
+                                                            size: 10, 
+                                                            color: pColor, 
+                                                            weight: FontWeight.bold
+                                                         )),
                                                     ]
                                                   ],
                                                 ),
@@ -1305,12 +1297,11 @@ class _TravelScreenState extends State<TravelScreen> {
                         width: 90,
                         height: 90,
                         decoration: BoxDecoration(
-                          // 🌟 RESTORED NEON BOX: Always Cyan opacity (looks neon in both modes)
+                          // 🌟 RESTORED NEON BOX
                           color: isSelected
                               ? CyberTheme.primary.withOpacity(0.2)
                               : Colors.transparent,
                           border: Border.all(
-                              // 🌟 RESTORED NEON BORDER
                               color: isSelected
                                   ? CyberTheme.primary
                                   : Colors.grey.withOpacity(0.3)),
@@ -1336,7 +1327,6 @@ class _TravelScreenState extends State<TravelScreen> {
                                           : mode == "Bicycle"
                                               ? Icons.directions_bike
                                               : Icons.directions_walk,
-                              // 🌟 ICON COLOR: Black in Light Mode (for visibility), Cyan in Dark Mode
                               color: isSelected
                                   ? (isDark ? CyberTheme.primary : Colors.black)
                                   : (isDark ? Colors.grey : Colors.grey.shade700),
@@ -1345,7 +1335,6 @@ class _TravelScreenState extends State<TravelScreen> {
                             const SizedBox(height: 8),
                             Text(mode.toUpperCase(),
                                 style: TextStyle(
-                                    // 🌟 TEXT COLOR: Match Icon
                                     color: isSelected
                                         ? (isDark ? CyberTheme.primary : Colors.black)
                                         : (isDark ? Colors.grey : Colors.grey.shade700),
@@ -1506,9 +1495,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
         parsedData['carbon_score'] = finalScore;
 
         // 👇 NEW LOGIC: PIVOT SYSTEM
-        // 50 is the "Neutral" line.
-        // If Score is 10 (Apple): (50 - 10) * 2 = +80 Points.
-        // If Score is 90 (Burger): (50 - 90) * 2 = -80 Points.
         int pointsImpact = (50 - finalScore) * 2; 
 
         if (mounted) {
@@ -1667,53 +1653,6 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class ArScreen extends StatefulWidget {
-  final int score;
-  const ArScreen({super.key, this.score = 50});
-  @override
-  State<ArScreen> createState() => _ArScreenState();
-}
-
-class _ArScreenState extends State<ArScreen> {
-  @override
-  Widget build(BuildContext context) {
-    bool isDanger = widget.score > 60;
-    Color hudColor = isDanger ? CyberTheme.danger : CyberTheme.primary;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.network("https://images.unsplash.com/photo-1518546305927-5a555bb7020d?q=80&w=1000&auto=format&fit=crop", fit: BoxFit.cover, color: Colors.black.withOpacity(0.6), colorBlendMode: BlendMode.darken),
-          Center(
-            child: Container(
-              width: 280, height: 280,
-              decoration: BoxDecoration(border: Border.all(color: hudColor.withOpacity(0.5), width: 1), borderRadius: BorderRadius.circular(140)),
-              child: Stack(
-                children: [
-                  Center(child: Container(width: 260, height: 260, decoration: BoxDecoration(border: Border.all(color: hudColor.withOpacity(0.3), width: 5), shape: BoxShape.circle)).animate(onPlay: (c) => c.repeat()).rotate(duration: 5.seconds)),
-                  Center(child: Icon(Icons.add, color: hudColor, size: 40)),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            top: 60, left: 20, right: 20,
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const BackButton(color: Colors.white), Text("LIVE FEED // ANALYZING", style: CyberTheme.techText(color: hudColor, spacing: 2)), Icon(Icons.battery_charging_full, color: hudColor)]),
-          ),
-          Positioned(
-            bottom: 40, left: 20, right: 20,
-            child: CyberCard(
-              borderColor: hudColor,
-              child: Column(children: [Text(isDanger ? "WARNING: HIGH CARBON" : "STATUS: OPTIMAL", style: CyberTheme.techText(color: hudColor, weight: FontWeight.bold, size: 18)), const SizedBox(height: 10), LinearProgressIndicator(value: widget.score / 100, backgroundColor: Colors.black, valueColor: AlwaysStoppedAnimation(hudColor), minHeight: 4)]),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class SwapEngine {
   static Map<String, String>? getSwaps(String itemName) {
     String name = itemName.toLowerCase();
@@ -1727,5 +1666,154 @@ class SwapEngine {
       return {'easy': 'Recycle Bin', 'medium': 'Reuse Bottle', 'hero': 'Metal Flask'};
     }
     return {'easy': 'Extend Use', 'medium': 'Buy Used', 'hero': 'Refuse Item'};
+  }
+}
+// ---------------------------------------------------------
+// 10. CUSTOM AR DOCK BUTTON (Crash-Proof Version)
+// ---------------------------------------------------------
+class ArFloatingDock extends StatefulWidget {
+  final VoidCallback onActivate;
+  const ArFloatingDock({super.key, required this.onActivate});
+
+  @override
+  State<ArFloatingDock> createState() => _ArFloatingDockState();
+}
+
+class _ArFloatingDockState extends State<ArFloatingDock> with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+  bool _isActivating = false;
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = CyberTheme.secondary;
+    
+    // Logic: Collapse text if Activating.
+    // On Mobile (!kIsWeb), we default to expanded unless activating.
+    bool showExpanded = (kIsWeb ? _isHovered : true) && !_isActivating;
+    
+    // Width: 60 (Circle) or 150 (Pill)
+    double targetWidth = _isActivating ? 60 : (showExpanded ? 150 : 60);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () async {
+          if (_isActivating) return;
+          _pulseController.stop();
+          setState(() => _isActivating = true); // Shrink immediately
+          
+          // Wait for the "Shake" animation
+          await Future.delayed(const Duration(milliseconds: 1500));
+          
+          if (mounted) {
+            widget.onActivate();
+            // Reset after navigation
+            setState(() => _isActivating = false);
+            if (!kIsWeb) _pulseController.repeat(reverse: true);
+          }
+        },
+        child: AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, child) {
+            // Breathing effect (only when idle)
+            double scale = (!kIsWeb && !_isActivating) 
+                ? (1.0 + (_pulseController.value * 0.05)) 
+                : 1.0;
+            return Transform.scale(scale: scale, child: child);
+          },
+          child: ClipRRect( 
+            borderRadius: BorderRadius.circular(30),
+            child: BackdropFilter( 
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOutBack,
+                height: 60,
+                width: targetWidth,
+                decoration: BoxDecoration(
+                  // Glassmorphism
+                  color: color.withOpacity(_isHovered || !kIsWeb ? 0.2 : 0.1),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: color.withOpacity(0.8), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.3), 
+                      blurRadius: 20,
+                      spreadRadius: -5,
+                    )
+                  ],
+                ),
+                // 🛠️ FIX: Wrap content in SingleChildScrollView to prevent Overflow
+                child: _isActivating
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(), // Disable user scrolling
+                        child: Container(
+                          // Force minimum width to ensure centering works correctly
+                          constraints: const BoxConstraints(minWidth: 60, minHeight: 60),
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.view_in_ar, color: Colors.white, size: 28)
+                                  .animate(target: showExpanded ? 1 : 0)
+                                  .scaleXY(end: 1.1, duration: 300.ms),
+                              
+                              AnimatedSize(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                                child: SizedBox(
+                                  width: showExpanded ? 80 : 0,
+                                  child: showExpanded
+                                      ? Padding(
+                                          padding: const EdgeInsets.only(left: 10),
+                                          child: Text(
+                                            "AR SCAN",
+                                            overflow: TextOverflow.visible,
+                                            softWrap: false,
+                                            style: CyberTheme.techText(
+                                              color: Colors.white,
+                                              weight: FontWeight.bold,
+                                              spacing: 1.2,
+                                            ),
+                                          ).animate().fadeIn(delay: 100.ms).slideX(),
+                                        )
+                                      : const SizedBox(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ).animate(target: _isActivating ? 1 : 0)
+           .shake(hz: 10, curve: Curves.easeInOut)
+           .then(delay: 1000.ms)
+           .scaleXY(end: 25, duration: 400.ms, curve: Curves.easeIn),
+        ),
+      ),
+    );
   }
 }

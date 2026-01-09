@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:ui';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
 
 class RealtimeScanner extends StatefulWidget {
@@ -11,37 +13,38 @@ class RealtimeScanner extends StatefulWidget {
   State<RealtimeScanner> createState() => _RealtimeScannerState();
 }
 
-class _RealtimeScannerState extends State<RealtimeScanner> {
+class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderStateMixin {
   late CameraController _controller;
   late ObjectDetector _objectDetector;
+  
+  late AnimationController _rotationController; 
+  late AnimationController _pulseController;    
+
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
   List<DetectedObject> _objects = [];
-  Size? _cameraImageSize; // To store exact camera resolution
+  Size? _cameraImageSize; 
 
-  // 🎨 PAINTS
-  final Paint _goodPaint = Paint()
-    ..color = Colors.greenAccent.withOpacity(0.4)
-    ..style = PaintingStyle.fill;
-
-  final Paint _badPaint = Paint()
-    ..color = Colors.redAccent.withOpacity(0.4)
-    ..style = PaintingStyle.fill;
-
-  final Paint _unknownPaint = Paint() // New: For objects with no clear label
-    ..color = Colors.blueAccent.withOpacity(0.3)
-    ..style = PaintingStyle.fill;
-
-  final Paint _borderPaint = Paint()
-    ..color = Colors.white
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 3;
+  // 🎨 PALETTE
+  final Color _cyan = const Color(0xFF00FFC2); // Eco
+  final Color _red = const Color(0xFFFF2E2E);  // Carbon
+  final Color _amber = const Color(0xFFFFC107); // Unknown
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
     _initializeDetector();
+
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
   }
 
   void _initializeDetector() {
@@ -59,7 +62,7 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
 
     _controller = CameraController(
       camera,
-      ResolutionPreset.medium, // keep medium for performance
+      ResolutionPreset.medium, 
       enableAudio: false,
       imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888,
     );
@@ -73,7 +76,7 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
       _processImage(image);
     });
 
-    setState(() => _isCameraInitialized = true);
+    if (mounted) setState(() => _isCameraInitialized = true);
   }
 
   Future<void> _processImage(CameraImage image) async {
@@ -85,15 +88,6 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
 
     try {
       final objects = await _objectDetector.processImage(inputImage);
-      
-      // DEBUG PRINT: Check your terminal!
-      if (objects.isNotEmpty) {
-        print("🔎 Found ${objects.length} objects!");
-        for(var obj in objects) {
-             print("Label: ${obj.labels.map((l) => l.text).join(', ')}");
-        }
-      }
-
       if (mounted) {
         setState(() {
           _objects = objects;
@@ -105,9 +99,6 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
     _isProcessing = false;
   }
 
-  // ------------------------------------------------------------------------
-  // 🧹 CONVERTER UTILITY
-  // ------------------------------------------------------------------------
   InputImage? _inputImageFromCameraImage(CameraImage image) {
     final camera = _controller.description;
     final sensorOrientation = camera.sensorOrientation;
@@ -135,76 +126,277 @@ class _RealtimeScannerState extends State<RealtimeScanner> {
   void dispose() {
     _controller.dispose();
     _objectDetector.close();
+    _rotationController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized) return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator()));
+    if (!_isCameraInitialized) return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: Color(0xFF00FFC2))));
+
+    final Size screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // 1. CAMERA FEED
           CameraPreview(_controller),
           
-          if (_cameraImageSize != null)
-            CustomPaint(
-              painter: ArLightPainter(
-                _objects, 
-                _cameraImageSize!, // Pass the real camera size
-                _goodPaint, 
-                _badPaint, 
-                _unknownPaint,
-                _borderPaint
-              ),
-            ),
+          // 2. TECH GRID
+          CustomPaint(painter: TechGridPainter(color: _cyan.withOpacity(0.1))),
 
-          Positioned(
-            bottom: 250, left: 20, right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
-              child: Text(
-                "Detecting: ${_objects.length} Objects\nBlue = Unknown | Green = Eco | Red = High Carbon",
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          // 3. CENTER ROTATING RING
+          Center(
+            child: RotationTransition(
+              turns: _rotationController,
+              child: Container(
+                width: 280,
+                height: 280,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: _cyan.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: CustomPaint(painter: CenterReticlePainter(color: _cyan)),
               ),
             ),
           ),
-          const Positioned(top: 50, left: 20, child: BackButton(color: Colors.white)),
+
+          // 4. INTELLIGENT BOUNDING BOXES (FULL BOXES)
+          if (_cameraImageSize != null)
+            CustomPaint(
+              painter: JarvisBoxPainter(
+                _objects, 
+                _cameraImageSize!, 
+                _cyan, 
+                _red, 
+                _amber 
+              ),
+            ),
+
+          // 5. PERIMETER DECORATIONS
+          Positioned(top: 50, left: 20, child: TechCorner(color: _cyan)),
+          Positioned(top: 50, right: 20, child: Transform.flip(flipX: true, child: TechCorner(color: _cyan))),
+          Positioned(bottom: 50, left: 20, child: Transform.flip(flipY: true, child: TechCorner(color: _cyan))),
+          Positioned(bottom: 50, right: 20, child: Transform.flip(flipX: true, flipY: true, child: TechCorner(color: _cyan))),
+
+          // 6. TOP HUD
+          Positioned(
+            top: 60, 
+            left: 30,
+            right: 30,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6), 
+                    border: Border.all(color: _cyan.withOpacity(0.3), width: 1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.adjust, color: _cyan, size: 18),
+                          const SizedBox(width: 8),
+                          CyberText(
+                            text: _objects.isNotEmpty 
+                                ? "TARGET LOCK: ${_objects.length} OBJECTS" 
+                                : "SCANNING SECTOR...",
+                            style: TextStyle(
+                              fontFamily: 'Courier', 
+                              color: _cyan,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              letterSpacing: 1.5
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 7. BOTTOM STATUS BAR
+          Positioned(
+            bottom: 60,
+            left: 20,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                 _StatusBlock(label: "BIO-SAFE", color: _cyan, isActive: _objects.any((o) => _classify(o) == 'eco')),
+                 _StatusBlock(label: "UNKNOWN", color: _amber, isActive: _objects.any((o) => _classify(o) == 'unknown')),
+                 _StatusBlock(label: "CARBON HAZARD", color: _red, isActive: _objects.any((o) => _classify(o) == 'carbon')),
+              ],
+            ),
+          ),
+          
+          Positioned(top: 55, left: 10, child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
+          )),
         ],
+      ),
+    );
+  }
+
+  String _classify(DetectedObject object) {
+    if (object.labels.isEmpty) return 'unknown';
+    String label = object.labels.first.text.toLowerCase();
+
+    if (label.contains('plant') || 
+        label.contains('food') || 
+        label.contains('vegetable') || 
+        label.contains('fruit') || 
+        label.contains('flower') || 
+        label.contains('person') || 
+        label.contains('wood') ||
+        label.contains('paper')) {
+      return 'eco';
+    } 
+    
+    if (label.contains('electronic') || 
+        label.contains('computer') || 
+        label.contains('phone') || 
+        label.contains('car') || 
+        label.contains('vehicle') || 
+        label.contains('plastic') || 
+        label.contains('bottle') || 
+        label.contains('bag') || 
+        label.contains('shoe') ||
+        label.contains('clothing') ||
+        label.contains('fashion') || 
+        label.contains('home good') || 
+        label.contains('ware') ||
+        label.contains('tool') ||
+        label.contains('appliance')) {
+      return 'carbon';
+    }
+
+    return 'unknown';
+  }
+}
+
+// ---------------------------------------------------------
+// 📟 HELPERS
+// ---------------------------------------------------------
+
+class _StatusBlock extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool isActive;
+
+  const _StatusBlock({required this.label, required this.color, required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: isActive ? 1.0 : 0.3,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.8), width: 1.5),
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: isActive ? [BoxShadow(color: color.withOpacity(0.4), blurRadius: 10)] : []
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: color, 
+            fontFamily: 'Courier', 
+            fontWeight: FontWeight.bold,
+            fontSize: 11
+          ),
+        ),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------
-// 🖌️ FIXED SCALING PAINTER
-// ---------------------------------------------------------
-// ---------------------------------------------------------
-// 🖌️ UPDATED PAINTER: SCANS EVERYTHING
-// ---------------------------------------------------------
-class ArLightPainter extends CustomPainter {
-  final List<DetectedObject> objects;
-  final Size absoluteImageSize;
-  final Paint goodPaint; // Green
-  final Paint badPaint;  // Red
-  final Paint unknownPaint; // Yellow (Analyzing)
-  final Paint borderPaint;
-
-  
-
-  ArLightPainter(this.objects, this.absoluteImageSize, this.goodPaint, this.badPaint, this.unknownPaint, this.borderPaint);
+class CenterReticlePainter extends CustomPainter {
+  final Color color;
+  CenterReticlePainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 📐 SCALING MATH
+    final paint = Paint()
+      ..color = color.withOpacity(0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 0, pi / 2, false, paint);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), pi, pi / 2, false, paint);
+
+    final tickPaint = Paint()..color = color.withOpacity(0.3)..strokeWidth = 2;
+    for (int i = 0; i < 360; i += 30) {
+      double angle = i * pi / 180;
+      double x1 = center.dx + (radius - 15) * cos(angle);
+      double y1 = center.dy + (radius - 15) * sin(angle);
+      double x2 = center.dx + (radius - 25) * cos(angle);
+      double y2 = center.dy + (radius - 25) * sin(angle);
+      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), tickPaint);
+    }
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class TechGridPainter extends CustomPainter {
+  final Color color;
+  TechGridPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 0.5;
+
+    double step = 50.0; 
+    
+    for (double x = 0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class JarvisBoxPainter extends CustomPainter {
+  final List<DetectedObject> objects;
+  final Size absoluteImageSize;
+  final Color ecoColor;
+  final Color warnColor;
+  final Color unknownColor;
+
+  JarvisBoxPainter(this.objects, this.absoluteImageSize, this.ecoColor, this.warnColor, this.unknownColor);
+
+  @override
+  void paint(Canvas canvas, Size size) {
     final double scaleX = size.width / absoluteImageSize.height;
     final double scaleY = size.height / absoluteImageSize.width;
 
     for (var object in objects) {
-      // 1. Draw the Box
       final rect = Rect.fromLTRB(
         object.boundingBox.left * scaleX,
         object.boundingBox.top * scaleY,
@@ -212,108 +404,135 @@ class ArLightPainter extends CustomPainter {
         object.boundingBox.bottom * scaleY,
       );
 
-      // 2. 🧠 SMARTER LOGIC: Default to Blue (Neutral), not Red
-      Paint chosenPaint = unknownPaint; 
-      
+      Color paintColor = unknownColor;
       if (object.labels.isNotEmpty) {
         String label = object.labels.first.text.toLowerCase();
         
-        // 🌿 GREEN: Nature, Food, Paper, People
-        if (label.contains("food") || 
-            label.contains("plant") || 
-            label.contains("fruit") || 
-            label.contains("vegetable") ||
-            label.contains("flower") ||
-            label.contains("tree") ||
-            label.contains("wood") ||    // Wood is usually sustainable
-            label.contains("paper") ||   
-            label.contains("person")) {  // Humans are not "High Carbon"!
-          chosenPaint = goodPaint;
+        if (label.contains('plant') || label.contains('food') || label.contains('fruit') || label.contains('vegetable') || label.contains('flower') || label.contains('person') || label.contains('wood') || label.contains('paper')) {
+          paintColor = ecoColor;
         } 
-        
-        // 🏭 RED: Electronics, Plastics, Vehicles, Industrial, & Accessories
-        else if (label.contains("electronic") || 
-                 label.contains("computer") || 
-                 label.contains("phone") || 
-                 label.contains("mobile") ||
-                 label.contains("cell") ||
-                 label.contains("screen") ||
-                 label.contains("monitor") ||
-                 label.contains("laptop") ||
-                 label.contains("tablet") ||
-                 // 👇 NEW: Audio & Accessories
-                 label.contains("headphone") ||
-                 label.contains("headset") ||
-                 label.contains("earphone") ||
-                 label.contains("earbud") ||
-                 label.contains("audio") ||
-                 label.contains("speaker") ||
-                 label.contains("camera") ||
-                 label.contains("remote") ||
-                 label.contains("control") ||
-                 label.contains("game") ||
-                 label.contains("cable") ||
-                 label.contains("wire") ||
-                 label.contains("glass") ||  // Screens often detect as glass
-                 label.contains("watch") ||
-                 // 👇 NEW: Generic Manufactured Goods
-                 label.contains("tool") ||
-                 label.contains("hardware") ||
-                 label.contains("equipment") ||
-                 label.contains("accessory") ||
-                 label.contains("bag") ||    // Leather/Synthetic
-                 label.contains("shoe") ||   // Fast fashion
-                 label.contains("clothing") ||
-                 label.contains("car") || 
-                 label.contains("vehicle") || 
-                 label.contains("plastic") || 
-                 label.contains("bottle") || 
-                 label.contains("can") ||
-                 label.contains("metal") ||  
-                 label.contains("appliance")) {
-          chosenPaint = badPaint;
-        }
-        
-        // 🔵 BLUE: Everything else (Furniture, Rooms, Walls, Clothes, Bags)
-        // This effectively "ignores" the background noise.
-        // 🔵 NEUTRAL / BLUE
-        else {
-           // HACKATHON TRICK:
-           // If the label is just "Object" or "Home good", treat it as Red (safe bet).
-           if (label == "object" || label.contains("good") || label.contains("item")) {
-             chosenPaint = badPaint; // Force Red for vague items
-           } else {
-             chosenPaint = unknownPaint; // Truly unknown stuff stays Blue
-           }
+        else if (label.contains('electronic') || label.contains('computer') || label.contains('phone') || label.contains('car') || label.contains('vehicle') || label.contains('plastic') || label.contains('bottle') || label.contains('bag') || label.contains('shoe') || label.contains('clothing') || label.contains('fashion') || label.contains('home good') || label.contains('ware') || label.contains('tool')) {
+          paintColor = warnColor;
         }
       }
 
-      // 3. Draw the visuals
-      canvas.drawRect(rect, chosenPaint);
+      // 🎨 FULL BOX DRAWING
+      final fillPaint = Paint()
+        ..color = paintColor.withOpacity(0.25)
+        ..style = PaintingStyle.fill;
+
+      final borderPaint = Paint()
+        ..color = paintColor.withOpacity(0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+
+      canvas.drawRect(rect, fillPaint);
       canvas.drawRect(rect, borderPaint);
-      
-      // 4. (Optional) DRAW TEXT LABEL
-      // This helps you verify *what* the AI actually sees.
+
       if (object.labels.isNotEmpty) {
+        String labelText = object.labels.first.text.toUpperCase();
+        
         final textSpan = TextSpan(
-          text: object.labels.first.text.toUpperCase(),
-          style: const TextStyle(
-            color: Colors.white, 
-            fontSize: 12, 
+          text: labelText,
+          style: TextStyle(
+            color: paintColor, 
+            fontSize: 12,
             fontWeight: FontWeight.bold, 
-            backgroundColor: Colors.black45
+            fontFamily: 'Courier',
+            backgroundColor: Colors.black.withOpacity(0.7)
           ),
         );
-        final textPainter = TextPainter(
-          text: textSpan, 
-          textDirection: TextDirection.ltr
-        );
+        final textPainter = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
         textPainter.layout();
-        textPainter.paint(canvas, Offset(rect.left, rect.top - 20));
+        textPainter.paint(canvas, Offset(rect.left, rect.top - 20)); 
       }
     }
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class TechCorner extends StatelessWidget {
+  final Color color;
+  const TechCorner({super.key, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40, height: 40,
+      child: CustomPaint(
+        painter: _CornerPainter(color: color),
+      ),
+    );
+  }
+}
+
+class _CornerPainter extends CustomPainter {
+  final Color color;
+  _CornerPainter({required this.color});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    
+    canvas.drawLine(Offset(0, 0), Offset(size.width, 0), paint);
+    canvas.drawLine(Offset(0, 0), Offset(0, size.height), paint);
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ---------------------------------------------------------
+// 🛠️ CRASH FIXED CYBER TEXT
+// ---------------------------------------------------------
+class CyberText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  const CyberText({super.key, required this.text, required this.style});
+  @override
+  State<CyberText> createState() => _CyberTextState();
+}
+
+class _CyberTextState extends State<CyberText> {
+  String _displayed = "";
+  final Random _random = Random();
+  final String _chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#\$%^&*";
+
+  @override
+  void initState() {
+    super.initState();
+    _animate();
+  }
+  
+  @override
+  void didUpdateWidget(covariant CyberText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) _animate();
+  }
+
+  // 🛠️ FIX: Added (!mounted) checks to prevent crash
+  void _animate() async {
+    String target = widget.text;
+    for (int i = 0; i <= target.length; i++) {
+      if (!mounted) return;
+      
+      if (i < target.length) {
+        String randomChar = _chars[_random.nextInt(_chars.length)];
+        setState(() => _displayed = target.substring(0, i) + randomChar);
+        await Future.delayed(const Duration(milliseconds: 10));
+        if (!mounted) return;
+      }
+      
+      setState(() => _displayed = target.substring(0, i));
+      await Future.delayed(const Duration(milliseconds: 20));
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Text(_displayed, style: widget.style);
+  }
 }
