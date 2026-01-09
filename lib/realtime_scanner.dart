@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
-import 'package:flutter/foundation.dart';
 
 class RealtimeScanner extends StatefulWidget {
   const RealtimeScanner({super.key});
@@ -81,7 +80,6 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
   }
 
   Future<void> _processImage(CameraImage image) async {
-  void _processImage(CameraImage image) async {
     final inputImage = _inputImageFromCameraImage(image);
     if (inputImage == null) {
       _isProcessing = false;
@@ -96,57 +94,9 @@ class _RealtimeScannerState extends State<RealtimeScanner> with TickerProviderSt
         });
       }
     } catch (e) {
-      print("Detection Error: $e");
-    } finally {
-      _isProcessing = false;
+      print("Error detecting objects: $e");
     }
-  }
-
-  Future<void> _initializeCamera() async {
-    try {
-      final cameras = await availableCameras();
-      
-      if (cameras.isEmpty) {
-        print("No cameras found");
-        return;
-      }
-
-      // ✅ FIX 1: Smart Camera Selection
-      // If no Back Camera is found (Laptop), it uses the first available one (Webcam).
-      final camera = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => cameras.first, 
-      );
-
-      _controller = CameraController(
-        camera,
-        ResolutionPreset.medium, // Medium is safest for Web
-        enableAudio: false,
-        // ✅ FIX 2: Web Safety
-        // We only use the specific format on Android. On Web, we let Flutter decide.
-        imageFormatGroup: kIsWeb 
-            ? ImageFormatGroup.unknown // Web handles this automatically
-            : (defaultTargetPlatform == TargetPlatform.android 
-                ? ImageFormatGroup.nv21 
-                : ImageFormatGroup.bgra8888),
-      );
-
-      await _controller.initialize();
-      
-      _controller.startImageStream((image) {
-        if (_isProcessing) return;
-        _isProcessing = true;
-        _cameraImageSize = Size(image.width.toDouble(), image.height.toDouble());
-        _processImage(image);
-      });
-
-      if (mounted) {
-        setState(() => _isCameraInitialized = true);
-      }
-      
-    } catch (e) {
-      print("Camera Error: $e");
-    }
+    _isProcessing = false;
   }
 
   InputImage? _inputImageFromCameraImage(CameraImage image) {
