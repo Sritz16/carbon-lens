@@ -15,7 +15,7 @@ import 'realtime_scanner.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
-const String apiKey = "AIzaSyCZzIwka1DechHWODFT5kUU6JefTql5yO0";
+const String apiKey = "AIzaSyBQXk2m4oxDA6a_PgIopv4pznjD3aVt82I";
 
 // Global Theme Notifier for Toggle
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
