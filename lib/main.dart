@@ -14,8 +14,8 @@ import 'package:confetti/confetti.dart';
 import 'realtime_scanner.dart'; 
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-
-const String apiKey = "AIzaSyBQXk2m4oxDA6a_PgIopv4pznjD3aVt82I";
+import 'dart:async';
+import 'env.dart';
 
 // Global Theme Notifier for Toggle
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.dark);
@@ -375,9 +375,21 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
-        if (snapshot.hasData) return const MainScreen();
+        // 1. If User is logged in...
+        if (snapshot.hasData) {
+          final user = snapshot.data!;
+          
+          // 2. CHECK: Is their email verified?
+          if (user.emailVerified) {
+            return const MainScreen(); // YES -> Let them in
+          } else {
+            return const VerifyEmailScreen(); // NO -> Send to Waiting Room
+          }
+        }
+        
+        // 3. If User is NOT logged in -> Show Login
         return const LoginScreen();
       },
     );
@@ -436,7 +448,8 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         UserCredential cred = await FirebaseAuth.instance
             .createUserWithEmailAndPassword(email: email, password: password);
-
+        
+        await cred.user!.sendEmailVerification();
         await FirebaseFirestore.instance
             .collection('users')
             .doc(cred.user!.uid)
@@ -537,6 +550,141 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ---------------------------------------------------------
+// NEW: EMAIL VERIFICATION SCREEN
+// ---------------------------------------------------------
+class VerifyEmailScreen extends StatefulWidget {
+  const VerifyEmailScreen({super.key});
+
+  @override
+  State<VerifyEmailScreen> createState() => _VerifyEmailScreenState();
+}
+
+class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
+  bool isEmailVerified = false;
+  bool canResendEmail = false;
+  Timer? timer;
+
+  @override
+  void initState() {
+    super.initState();
+    isEmailVerified = FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+
+    if (!isEmailVerified) {
+      sendVerificationEmail();
+      
+      // Auto-check every 3 seconds if they clicked the link
+      timer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => checkEmailVerified(),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> checkEmailVerified() async {
+    // We have to reload the user to get the latest status from Firebase
+    await FirebaseAuth.instance.currentUser?.reload();
+    setState(() {
+      isEmailVerified = FirebaseAuth.instance.currentUser?.emailVerified ?? false;
+    });
+
+    if (isEmailVerified) {
+      timer?.cancel();
+      // The AuthGate will automatically see the change and switch to MainScreen
+    }
+  }
+
+  Future<void> sendVerificationEmail() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser!;
+      await user.sendEmailVerification();
+      
+      setState(() => canResendEmail = false);
+      await Future.delayed(const Duration(seconds: 5));
+      if (mounted) setState(() => canResendEmail = true);
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error sending email: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+@override
+Widget build(BuildContext context) {
+  // If verified, show a "Success" screen while the AuthGate redirects
+  if (isEmailVerified) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.check_circle, color: CyberTheme.primary, size: 80),
+            const SizedBox(height: 20),
+            Text("VERIFIED!", style: CyberTheme.techText(size: 24, color: Colors.white, weight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            const Text("Redirecting to Command Center...", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 30),
+            const CircularProgressIndicator(color: CyberTheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Otherwise, show the normal verification UI
+  return Scaffold(
+    appBar: AppBar(title: const Text("VERIFY IDENTITY")),
+    body: CyberBackground(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.mark_email_unread, size: 80, color: CyberTheme.primary),
+            const SizedBox(height: 24),
+            Text(
+              "VERIFICATION REQUIRED",
+              style: CyberTheme.techText(size: 20, weight: FontWeight.bold, color: CyberTheme.primary),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "A secure link has been sent to:\n${FirebaseAuth.instance.currentUser?.email}",
+              textAlign: TextAlign.center,
+              style: CyberTheme.techText(color: Colors.grey),
+            ),
+            const SizedBox(height: 40),
+            const CircularProgressIndicator(color: CyberTheme.primary),
+            const SizedBox(height: 16),
+            Text("Waiting for authorization...", style: CyberTheme.techText(size: 10, color: Colors.grey)),
+            const SizedBox(height: 40),
+            
+            CyberButton(
+              text: "RESEND EMAIL",
+              icon: Icons.send,
+              onPressed: canResendEmail ? sendVerificationEmail : null,
+              color: canResendEmail ? CyberTheme.primary : Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => FirebaseAuth.instance.signOut(),
+              child: Text("CANCEL (LOGOUT)", style: CyberTheme.techText(color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+}
 // 5. MAIN SCREEN (MODIFIED WITH AR DOCK)
 // ---------------------------------------------------------
 class MainScreen extends StatefulWidget {
@@ -556,8 +704,49 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // RUN THE REPAIR FUNCTION ON STARTUP
+    _repairMissingProfile();
+  }
+
+  // --- NEW SELF-HEALING FUNCTION ---
+  Future<void> _repairMissingProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final doc = await userRef.get();
+
+    // If the profile document is missing (Ghost Account), create it now.
+    if (!doc.exists) {
+      print("GHOST ACCOUNT DETECTED. REPAIRING...");
+      
+      String name = user.displayName ?? user.email?.split('@')[0] ?? "Agent";
+      
+      await userRef.set({
+        'uid': user.uid,
+        'email': user.email,
+        'displayName': name.toUpperCase(), // Default name
+        'totalPoints': 0,
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Force a UI refresh
+      setState(() {});
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("PROFILE RECOVERED. WELCOME BACK."),
+          backgroundColor: CyberTheme.primary,
+        ),
+      );
+    }
+  }
+  // ---------------------------------
+
+  @override
   Widget build(BuildContext context) {
-    // 1. Detect if Dark Mode
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -625,7 +814,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// ---------------------------------------------------------
+
 // 6. DASHBOARD
 // ---------------------------------------------------------
 class DashboardScreen extends StatefulWidget {
@@ -1440,7 +1629,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     try {
       final bytes = await photo.readAsBytes();
       String base64Image = base64Encode(bytes);
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey.trim()}');
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${globalApiKey.trim()}');
 
       final response = await http.post(url,
           headers: {'Content-Type': 'application/json'},
@@ -1448,18 +1637,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
             "contents": [{
               "parts": [
                 {
-                  "text": "I am currently in $userLocation. Identify this object. "
-                          "Estimate Carbon Footprint Score (0-100). "
-                          "Provide 3 sustainable alternatives ('smart_swaps'): "
-                          "1. Easy, 2. Medium, 3. Hero. "
-                          "Return ONLY raw JSON (no markdown): {"
-                          "  'item_name': 'String', "
-                          "  'carbon_score': Int, "
-                          "  'shadow_type': 'String', "
-                          "  'nudge_text': 'String', "
-                          "  'tree_analogy': 'String', "
-                          "  'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}"
-                          "}"
+                  "text": "I am currently in $userLocation. Analyze this image. "
+        "If it is a RECEIPT or LIST, read the text items and calculate the total carbon footprint of the purchases. "
+        "If it is a SINGLE OBJECT, identify it directly. "
+        "Estimate Carbon Footprint Score (0-100). "
+        "If it is a RECEIPT containing meat, processed food, or plastic, the 'carbon_score' MUST be between 70 and 90. "
+        "If it is sustainable (vegetables, bulk items), the score should be between 20 and 40. "
+        "Provide 3 sustainable alternatives ('smart_swaps'): "
+        "1. Easy, 2. Medium, 3. Hero. "
+        "Return ONLY raw JSON (no markdown): {"
+        "  'item_name': 'String (e.g., Grocery Receipt or Plastic Bottle)', "
+        "  'carbon_score': Int, "
+        "  'shadow_type': 'String', "
+        "  'nudge_text': 'String (Keep it short)', "
+        "  'tree_analogy': 'String', "
+        "  'smart_swaps': {'easy': 'String', 'medium': 'String', 'hero': 'String'}"
+        "}"
                 },
                 {"inline_data": {"mime_type": "image/jpeg", "data": base64Image}}
               ]
@@ -1479,8 +1672,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         final Map<String, dynamic> parsedData = jsonDecode(finalText);
         
         int aiScore = parsedData['carbon_score'] ?? 50; 
-        int variation = Random().nextInt(6) - 3; 
-        int finalScore = (aiScore + variation).clamp(0, 100);
+        int finalScore = aiScore;
 
         parsedData['carbon_score'] = finalScore;
 
@@ -1600,48 +1792,207 @@ class LeaderboardScreen extends StatelessWidget {
   }
 }
 
-class ProfileScreen extends StatelessWidget {
+// ---------------------------------------------------------
+// UPDATED: PROFILE SCREEN WITH DELETE ACCOUNT
+// ---------------------------------------------------------
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _isDeleting = false;
+
+  Future<void> _deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // 1. CONFIRMATION DIALOG
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+            side: const BorderSide(color: CyberTheme.danger),
+            borderRadius: BorderRadius.circular(16)),
+        title: Text("TERMINATE ACCOUNT?",
+            style: CyberTheme.techText(color: CyberTheme.danger, weight: FontWeight.bold)),
+        content: Text(
+            "This action is irreversible.\nAll your points, scans, and data will be wiped from the server.",
+            style: CyberTheme.techText(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text("CANCEL", style: CyberTheme.techText(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text("DELETE EVERYTHING",
+                style: CyberTheme.techText(color: CyberTheme.danger, weight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isDeleting = true);
+
+    try {
+      // 2. DELETE DATA (Scans & User Profile)
+      // Note: In a real production app, use Cloud Functions for this. 
+      // For Hackathon, we do a quick client-side cleanup.
+      
+      // Delete User Doc
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+      
+      // Delete Scans (Batch delete for efficiency)
+      final scans = await FirebaseFirestore.instance
+          .collection('scans')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+      
+      for (var doc in scans.docs) {
+        await doc.reference.delete();
+      }
+
+      // 3. DELETE AUTH USER
+      await user.delete();
+      
+      // AuthGate will automatically detect this and switch to LoginScreen
+
+    } on FirebaseAuthException catch (e) {
+      setState(() => _isDeleting = false);
+      
+      if (e.code == 'requires-recent-login') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("SECURITY ALERT: Please Log Out and Log In again to verify identity before deletion."),
+            backgroundColor: CyberTheme.danger,
+            duration: Duration(seconds: 4),
+          ));
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text("ERROR: ${e.message}"),
+            backgroundColor: CyberTheme.danger,
+          ));
+        }
+      }
+    } catch (e) {
+      setState(() => _isDeleting = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("SYSTEM FAILURE. TRY AGAIN."),
+          backgroundColor: CyberTheme.danger,
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
     final textColor = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.white;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(title: const Text("MY PROFILE")),
       body: CyberBackground(
-        child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance.collection('users').doc(user!.uid).snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-            final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: CyberTheme.primary, width: 2), boxShadow: [BoxShadow(color: CyberTheme.primary.withOpacity(0.4), blurRadius: 20)]),
-                    child: CircleAvatar(radius: 50, backgroundColor: Colors.black, child: Text(data['displayName']?[0] ?? "U", style: const TextStyle(fontSize: 40, color: Colors.white))),
-                  ),
-                  const SizedBox(height: 24),
-                  Text((data['displayName'] ?? "UNKNOWN").toUpperCase(), style: CyberTheme.techText(size: 24, weight: FontWeight.bold, color: textColor)),
-                  Text(user.email ?? "", style: CyberTheme.techText(color: isDark ? Colors.grey : Colors.black87)),
-                  const SizedBox(height: 40),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: CyberButton(text: "DISCONNECT (LOGOUT)", color: Colors.red.shade900, onPressed: () => FirebaseAuth.instance.signOut()),
-                  ),
-                ],
+        child: _isDeleting
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(color: CyberTheme.danger),
+                    const SizedBox(height: 20),
+                    Text("ERASING DIGITAL FOOTPRINT...",
+                        style: CyberTheme.techText(color: CyberTheme.danger, spacing: 2))
+                  ],
+                ),
+              )
+            : StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  // Handle case where user deletes account and stream updates before redirect
+                  if (!snapshot.hasData || !snapshot.data!.exists) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  
+                  final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                  
+                  return Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: CyberTheme.primary, width: 2),
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: CyberTheme.primary.withOpacity(0.4),
+                                      blurRadius: 20)
+                                ]),
+                            child: CircleAvatar(
+                                radius: 50,
+                                backgroundColor: Colors.black,
+                                child: Text(data['displayName']?[0] ?? "U",
+                                    style: const TextStyle(
+                                        fontSize: 40, color: Colors.white))),
+                          ),
+                          const SizedBox(height: 24),
+                          Text((data['displayName'] ?? "UNKNOWN").toUpperCase(),
+                              style: CyberTheme.techText(
+                                  size: 24,
+                                  weight: FontWeight.bold,
+                                  color: textColor)),
+                          Text(user.email ?? "",
+                              style: CyberTheme.techText(
+                                  color: isDark ? Colors.grey : Colors.black87)),
+                          
+                          const SizedBox(height: 50),
+                          
+                          // LOGOUT BUTTON
+                          CyberButton(
+                              text: "DISCONNECT (LOGOUT)",
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+                              icon: Icons.logout,
+                              onPressed: () => FirebaseAuth.instance.signOut()),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // DELETE ACCOUNT BUTTON
+                          CyberButton(
+                              text: "DELETE ACCOUNT",
+                              color: CyberTheme.danger.withOpacity(0.9),
+                              icon: Icons.delete_forever,
+                              onPressed: _deleteAccount),
+                          
+                          const SizedBox(height: 20),
+                          Text("v1.0.0 DEV CREW BUILD", style: CyberTheme.techText(size: 10, color: Colors.grey.withOpacity(0.3))),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
       ),
     );
   }
 }
+
 
 class SwapEngine {
   static Map<String, String>? getSwaps(String itemName) {
